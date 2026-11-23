@@ -9,7 +9,7 @@ in Claude Code from a trip folder.
 | `SKILL.md` | The workflow Claude follows (phases, gates, defaults, verified pitfalls) |
 | `bootstrap.sh` | Checks/creates the shared toolkit; sets up new trip folders |
 | `CLAUDE.template.md` | Per-trip `CLAUDE.md` (kickoff questions, caption rules, hard rules); public and generic |
-| `~/.claude/travel-reel.defaults.md` | **Your** standing defaults (who holds the camera, look, opener...). Not in this repo; merged into each new trip's `CLAUDE.md` by `--init-project`. Copy it to a new Mac yourself. |
+| `~/.claude/travel-reel.defaults.md` | **Your** standing defaults (who holds the camera, look, opener...). Not in this repo; merged into each new trip's `CLAUDE.md` by `--init-project` (a `## Config overrides` section sets config lines such as `- Gate 1 auto-continue: yes`; the rest becomes the standing defaults). Copy it to a new Mac yourself. |
 | `template/scripts/` | The tested pipeline (see `template/README.md` for run order + what to edit per trip) |
 | `template/looks/` | Standing look (Look 2 "warm cinematic") + Insta360/Samsung camera-match LUTs |
 | `requirements-*.lock` | Exact Python package versions for the shared toolkit |

@@ -131,14 +131,26 @@ source "$TK/venv/bin/activate"
 EOF
     echo "wrote $P/scripts/env.sh"
   fi
-  # CLAUDE.md = public template + the user's PERSONAL standing defaults (kept outside this public repo):
-  # the block between the standing-defaults markers is replaced by $TRAVEL_REEL_DEFAULTS if that file exists.
+  # CLAUDE.md = public template + the user's PERSONAL defaults file (kept outside this public repo):
+  #   "## Config overrides" section: "- Key: value" lines replace the template line with the same key
+  #                                  (e.g. "- Gate 1 auto-continue: yes", "- Opener: ...")
+  #   everything else: replaces the block between the standing-defaults markers
   DEF="${TRAVEL_REEL_DEFAULTS:-$HOME/.claude/travel-reel.defaults.md}"
   if [ ! -f "$P/CLAUDE.md" ]; then
     if [ -f "$DEF" ]; then
-      awk -v def="$DEF" '/<!-- standing-defaults:start -->/{print; while ((getline l < def) > 0) print l; skip=1; next}
-                         /<!-- standing-defaults:end -->/{skip=0} !skip' "$SKILL_DIR/CLAUDE.template.md" > "$P/CLAUDE.md"
-      echo "wrote $P/CLAUDE.md (fill in the trip name; standing defaults from $DEF)"
+      awk -v def="$DEF" '
+        BEGIN { sec = "body"
+                while ((getline l < def) > 0) {
+                  if (l ~ /^## Config overrides/) { sec = "cfg"; continue }
+                  if (l ~ /^## /) sec = "body"
+                  if (sec == "cfg") { if (l ~ /^- [^:]+:/) { k = l; sub(/:.*/, "", k); ov[k] = l } }
+                  else body[++nb] = l } }
+        /<!-- standing-defaults:start -->/ { print; for (i = 1; i <= nb; i++) print body[i]; skip = 1; next }
+        /<!-- standing-defaults:end -->/ { skip = 0 }
+        skip { next }
+        /^- [^:]+:/ { k = $0; sub(/:.*/, "", k); if (k in ov) { print ov[k]; next } }
+        { print }' "$SKILL_DIR/CLAUDE.template.md" > "$P/CLAUDE.md"
+      echo "wrote $P/CLAUDE.md (fill in the trip name; defaults + config overrides from $DEF)"
     else
       cp "$SKILL_DIR/CLAUDE.template.md" "$P/CLAUDE.md" && echo "wrote $P/CLAUDE.md (fill in the trip name; no personal defaults file at $DEF)"
     fi
