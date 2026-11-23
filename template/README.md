@@ -30,17 +30,24 @@ this trip's footage; keep the code around it.
 | Render shots from originals | `30_render_shot.py [S01 ...]` | **trip** | `REPAIR_LUT`, `FINISH_LUT` shot→LUT maps |
 | Motion check / shot sheet | `33_motion_check.py <id>`, `32_shot_sheet.py` | generic | – |
 | Route map (optional) | `90_fetch_osm.sh`, `91_route_map.py` | **trip** (91; bbox in 90) | `PTS` pins, routes, labels, bbox |
-| On-screen text (optional) | `92_text_overlays.py <ver>` | **trip** | `OVERLAYS` (times on the current timeline) |
+| Destination research (optional) | WebSearch → `assets/research.md` | – | graded facts (SKILL.md Phase 0.6) |
+| B-roll from 360 (optional) | `95_broll_360.py` → view `assets/broll_sheet.jpg` | generic | add picks to `23_edl.py` as 360 shots |
+| SFX library (optional) | `94_sfx.py` | generic | – (writes `assets/sfx/*.wav`) |
+| On-screen text + SFX (optional) | `93_text_sfx.py <ver> --board`, then `93_text_sfx.py <ver>` | generic | `assets/overlays.csv`, `assets/sfx_cues.csv` (see `examples/`) |
 | Rough cut | `60_assemble.py <ver> --mute` → `61_qc.py <file> [master]` | generic | – |
 | 🛑 Gate 3 (user checks faces on the rough cut) | | | |
 | Finishing | `70_shot_match.py` → `71_finishing_trims.py` | **trip** | ground regions; trims for measured outliers |
-| Export | `80_export.py <out> [--master work/timeline_text.mov]` | generic | – |
+| Export | `80_export.py <out> [--master work/timeline_text.mov] [--audio work/audio/sfx.wav]` | generic | – |
 | Master + Resolve | `81_export_master_otio.py` | **trip** | timeline name |
 | Audio (only if asked) | `40_audio_analysis.py`, `41_audio_mix.py` | **trip** (41) | per-shot overrides |
 | Privacy scan (only if asked) | `50_privacy_scan.py [--file f]` | generic | – |
 
 Libraries: `lib_reel.py` (THE decode path, v360 helpers, proxies), `lib_color.py` (OKLab, LUT
-I/O, gamut map), `lib_edl.py` (keyframes, easing, crops), `lib_privacy.py` (detectors).
+I/O, gamut map), `lib_edl.py` (keyframes, easing, crops), `lib_privacy.py` (detectors),
+`lib_text.py` (caption design system: 6 styles, adaptive placement + colour, emoji, kinetic pops).
+
+`examples/overlays.csv` + `examples/sfx_cues.csv`: the Kanakapura v7 captions and cues (copy to `assets/`
+and rewrite for the trip). Caption copy: emoji where meaningful, no colons.
 
 ## Looks
 `looks/look2_warm_cinematic.cube` is the standing look. `base_insta360.cube` / `base_samsung.cube` are

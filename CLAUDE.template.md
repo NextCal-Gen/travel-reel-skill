@@ -9,32 +9,38 @@ Raw travel clips in, cinematic Instagram Reel out. The full workflow lives in th
 - Timeline fps: 30 (change only if justified)
 - Look: natural cinematic: warm sun, rich greens, clean skies, soft highlight roll-off
 - Look reference (optional): references/look/
-- Audio: **none**. Never add music. Deliver with no audio track (no music, no ambience) unless I ask.
-- Faces: my face must never appear; avoid identifiable faces of others
+- Audio: **none** (no music, no ambience). Subtitle sound effects only if chosen at kickoff.
+- Faces: the camera holder must never appear (answer "who holds the camera" at kickoff);
+  other people in frame are fine unless I say otherwise.
 
+<!-- standing-defaults:start -->
 ## Standing defaults (don't ask; apply unless I say otherwise for a trip)
-- **The person holding the 360 stick / riding the bike is me.** My face must never be visible;
-  me in a full-face helmet with the visor down is fine on camera.
-- **Look: Look 2 "warm cinematic"** (approved on the Kanakapura reel). Reuse it; don't build look
-  candidates or stop at the look gate. Re-measure the camera match only for new cameras or very
-  different light. A new look only if I ask.
-- **Gate 1 auto-continue:** if every clip is identified with high confidence, show the inventory
-  summary and carry on without waiting. Stop at Gate 1 only when something is medium/low confidence.
+None yet. Ask the kickoff questions; when an answer repeats across trips, save it in
+`~/.claude/travel-reel.defaults.md` (copied into this block by `bootstrap.sh --init-project`).
+- **Look:** Look 2 "warm cinematic" from `assets/looks/` is offered first; build look candidates only
+  if I don't want it.
+<!-- standing-defaults:end -->
 
 ## Ask me once at kickoff (one batch, before Phase 1), then don't ask again
-1. **On-screen text?** None, or burned-in hook + captions + CTA (and what the CTA says, e.g. DM "RIDE").
-2. **Extras / gimmicks?** None, or route map (with or without place labels), or other 360 effects
-   (tiny planet, whip transitions, speed ramps). Default: none.
+1. **On-screen text?** None / captions (hook + captions + CTA; what the CTA says) / captions + subtitle
+   sound effects (pop, pin, whoosh...).
+2. **Extras?** Any of: route map (with or without labels), B-roll cutaways from 360 clips, destination fact
+   cards (web-researched, sourced), other 360 effects (tiny planet, whip transitions, speed ramps). Default none.
 3. **Facts you can't see in the footage:** start city, place names, map links or GPX, distance, what I call
    moments (e.g. "river crossing"). Don't invent any of these.
+4. **Who holds the camera / rides?** (skip if a standing default covers it)
 
-## My preferences (learned on the Kanakapura reel)
-- Riding footage available → **open on the ride**: me in helmet → one eased 180° turn to the road ahead
-  → stop and hold. No multi-turn spins.
-- Keep 360 clips natural: no extra 360 effects unless I chose them at kickoff.
+## Caption copy rules
+- Emoji where they add meaning (🏍️ ride, 🛕 temple, 🪷 lily pond, 📍 distance, 📩 DM CTA); none on serif
+  "editorial" place names. Avoid emoji with branded artwork (Apple's 🛣️ shows a "CUPERTINO" sign).
+- No colons in on-screen text; use " - " only if a break is needed.
+- No boxes behind text: colours and placement are chosen from the frame (lib_text).
+
+## Preferences
+- Keep 360 clips natural: no extra 360 effects unless chosen at kickoff.
 - If I pick on-screen text: also export a **clean version** without it.
-- **No automated face/privacy scans.** Pick framings away from me and from close faces of others;
-  I'll review the rough cut myself and flag anything before final approval.
+- **No automated face/privacy scans of the reel.** Pick framings away from the camera holder; I review
+  the rough cut myself and flag anything before final approval.
 
 ## Folder layout
 - Tools: shared toolkit at `~/travel-reel-toolkit` (venv, RIFE, models, caches); one copy for all trips.
@@ -42,7 +48,7 @@ Raw travel clips in, cinematic Instagram Reel out. The full workflow lives in th
 - `raw/`: original clips. READ-ONLY. Never modify, move or re-encode in place.
 - `references/`: reference reels (inspiration only) and `references/look/` stills or LUTs
 - `luts/`: official manufacturer LUTs only
-- `assets/`: inventory, analysis, EDL, map data
+- `assets/`: inventory, analysis, EDL, map data, research, overlays
 - `scripts/`: every processing step as a re-runnable script
 - `work/`: proxies, intermediates (safe to delete)
 - `previews/`, `outputs/`: renders
@@ -51,8 +57,9 @@ Raw travel clips in, cinematic Instagram Reel out. The full workflow lives in th
 - Identify camera, projection and color profile of every clip before any processing.
 - Never dewarp flat footage. Never apply a Log LUT unless the Log profile is confirmed.
 - Corrections are applied only when a measured diagnostic crosses its threshold. Log why.
-- Stop at every approval gate and wait for my reply (except Gate 1 auto-continue and the look gate,
-  per standing defaults). Never export finals without an approved rough cut.
+- Stop at every approval gate and wait for my reply (except where standing defaults allow
+  auto-continue). Never export finals without an approved rough cut.
 - Never claim a check was done unless it actually ran. Report source limitations honestly.
 - No voiceover, no music, no logos, no copyrighted reference footage.
 - No burned-in text unless I opted in at kickoff (captions, map labels); then also export a clean version.
+- On-screen facts only from me or from strong sources in `assets/research.md`.

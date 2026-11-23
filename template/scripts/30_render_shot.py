@@ -89,7 +89,7 @@ def render(s):
             blur = (f"split=3[rb_a][rb_b][rb_c];[rb_a]crop={ROT_PAD}:ih:iw-{ROT_PAD}:0[rb_l];[rb_c]crop={ROT_PAD}:ih:0:0[rb_r];"
                     f"[rb_l][rb_b][rb_r]hstack=3,gblur=sigma=0:sigmaV=0:steps=3,crop=iw-{2 * ROT_PAD}:ih:{ROT_PAD}:0,")
         geo = (f"sendcmd=f={cmd_file(s, src_fps, '360', eq_w)},{blur}"
-               f"v360=input=e:output=flat:yaw={s['kf'][0][1]}:pitch={s['kf'][0][2]}:h_fov={hf0}:v_fov={vfov(hf0):.3f}"
+               f"v360=input=e:output=flat:yaw={(s['kf'][0][1] + 180.0) % 360.0 - 180.0:.3f}:pitch={s['kf'][0][2]}:h_fov={hf0}:v_fov={vfov(hf0):.3f}"
                f":w={OUT_W}:h={OUT_H}:interp=lanczos:reset_rot=1")
         # reset_rot=1 is REQUIRED: without it v360 composes each yaw/pitch command onto the
         # current orientation (measured: 60/255 error after 12 frames; camera spun to sky/ground).

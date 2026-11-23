@@ -8,7 +8,8 @@ in Claude Code from a trip folder.
 |---|---|
 | `SKILL.md` | The workflow Claude follows (phases, gates, defaults, verified pitfalls) |
 | `bootstrap.sh` | Checks/creates the shared toolkit; sets up new trip folders |
-| `CLAUDE.template.md` | Per-trip `CLAUDE.md` (standing defaults, kickoff questions, hard rules) |
+| `CLAUDE.template.md` | Per-trip `CLAUDE.md` (kickoff questions, caption rules, hard rules); public and generic |
+| `~/.claude/travel-reel.defaults.md` | **Your** standing defaults (who holds the camera, look, opener...). Not in this repo; merged into each new trip's `CLAUDE.md` by `--init-project`. Copy it to a new Mac yourself. |
 | `template/scripts/` | The tested pipeline (see `template/README.md` for run order + what to edit per trip) |
 | `template/looks/` | Standing look (Look 2 "warm cinematic") + Insta360/Samsung camera-match LUTs |
 | `requirements-*.lock` | Exact Python package versions for the shared toolkit |
@@ -41,7 +42,7 @@ in Claude Code from a trip folder.
 Creates:
 ```
 my-trip/
-├── CLAUDE.md            ← set the trip name; standing defaults + kickoff questions inside
+├── CLAUDE.md            ← set the trip name; your standing defaults (if the defaults file exists) + kickoff questions
 ├── raw/                 ← put original clips here (read-only)
 ├── references/look/
 ├── luts/                ← official manufacturer LUTs only
@@ -61,5 +62,6 @@ cd ~/.claude/skills/travel-reel && git pull                                   # 
 cd ~/.claude/skills/travel-reel && git add -A && git commit -m "..." && git push   # after improving it
 ```
 
-Limits: macOS on Apple silicon (Homebrew in `/opt/homebrew`, MoltenVK, Avenir Next font).
+Limits: macOS on Apple silicon (Homebrew in `/opt/homebrew`, MoltenVK; captions use macOS system fonts
+Futura / Avenir Next / Didot and Apple Color Emoji). Sound effects are synthesised in code (no sample files).
 Map data drawn by the route-map module is © OpenStreetMap contributors (credit it in the post caption).

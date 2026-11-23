@@ -1,12 +1,14 @@
 ---
 name: travel-reel
-description: Turn raw travel clips (Insta360 360°, iPhone, Samsung, DJI, mixed SDR/HDR/Log) into a professional cinematic 9:16 Instagram Reel with camera-correct color management, conditional shot repair and approval gates. Use whenever the user asks to edit, cut, grade, reframe or export travel footage or a reel from the raw/ folder, even if they don't say "skill" or "reel".
+description: Turn raw travel clips (Insta360 360°, iPhone, Samsung, DJI, mixed SDR/HDR/Log) into a professional cinematic 9:16 Instagram Reel with camera-correct color management, conditional shot repair, adaptive aesthetic captions with emoji and sound effects, 360 B-roll and researched destination facts, and approval gates. Use whenever the user asks to edit, cut, grade, reframe or export travel footage or a reel from the raw/ folder, even if they don't say "skill" or "reel".
 ---
 
 # Cinematic Travel Reel
 
 You are acting as a senior travel-film editor, colorist and video-processing engineer.
-Read the per-trip config, kickoff questions and preferences in `CLAUDE.md` first.
+Read the per-trip config, standing defaults, kickoff questions, caption rules and preferences in
+`CLAUDE.md` first. Standing defaults are personal: `bootstrap.sh --init-project` fills them in from
+`~/.claude/travel-reel.defaults.md` (never committed to this public repo).
 
 ## Operating principles
 
@@ -68,14 +70,29 @@ is written to the home folder. Check `luts/` for official manufacturer LUTs and 
 
 Ask everything in one AskUserQuestion call (max 4 questions). Apply the **standing defaults** in
 `CLAUDE.md` without asking (e.g. who's on camera, the look); only ask what they don't cover:
-1. **On-screen text:** none, or burned-in hook + captions + CTA (ask the CTA wording).
-2. **Extras:** none / route map (with or without labels) / other 360 effects (tiny planet,
-   whip transitions, speed ramps). Default none.
+1. **On-screen text:** none / captions (hook + captions + CTA; ask the CTA wording) / captions + subtitle SFX.
+2. **Extras (multi-select):** route map (with or without labels) / B-roll cutaways from 360 clips /
+   destination fact cards (web-researched) / other 360 effects (tiny planet, whip, speed ramps). Default none.
 3. **Facts not visible in footage:** start city, place names, map links or GPX, distance, the
    user's names for moments. Never invent them; resolve map links to coordinates yourself.
-4. **Who's on camera:** only if `CLAUDE.md` has no standing default for it.
+4. **Who holds the camera / rides:** only if `CLAUDE.md` has no standing default for it.
 
-Audio defaults to **none** (no music ever, no ambience) unless the user's config says otherwise; don't ask.
+Audio defaults to **none** (no music ever, no ambience); the only sound is the subtitle SFX track,
+and only if chosen in question 1. Don't ask about music.
+
+## Phase 0.6: Destination research (if fact cards were chosen, or captions name places)
+
+Use WebSearch (several searches in one turn) on the places from the kickoff answers. Write
+`assets/research.md` with every claim graded and linked:
+- **Strong** (two independent or one authoritative + one corroborating source): may become an
+  on-screen fact card without asking. Keep cards short and numeric where possible ("55 km south of X").
+- **Moderate** (one reputable source) and **weak** (blogs, vlog descriptions, a single big claim):
+  list them; use only with the user's OK.
+- **Not verified / conflicting:** never on screen.
+- **Sensitivities:** pollution, contested names, religious-site rules, closures, safety. Wording must
+  respect them (e.g. no "pristine" for a polluted river; a contested district rename → use the town name).
+Facts the user gave at kickoff need no source. Distances measured by the route map (OSRM) are
+labelled "by road" and "≈".
 
 ## Phase 1: Source identification (mandatory first)
 
@@ -164,9 +181,17 @@ rough cut instead. Otherwise:
 - `references/` if present: inspiration only. Else professional travel-edit norms.
 - 10-bit proxies with corrected range/rotation (keep them small: HEVC 10-bit, about 20 Mbps).
   PySceneDetect on the proxies.
-- **360 direction sheets:** 6 yaws × 1 frame/s per clip, viewed. Note where the user and close
-  faces are and choose framings away from them (no automated per-frame face scans: the user
-  reviews the rough cut).
+- **360 direction sheets:** 6 yaws × 1 frame/s per clip, viewed. Note where the **camera holder** is
+  and choose framings away from them. Privacy rule: only the holder must never appear (face, body,
+  hands, gloves); passers-by are fine unless the user says otherwise. No automated per-frame face
+  scans of the reel: the user reviews the rough cut.
+- **B-roll from 360 (if chosen):** `95_broll_360.py` scans every 360 clip (every 2 s, 12 yaws × 3
+  pitches at the no-upscale h_fov) for unused, colourful, detailed views; skips the holder's direction
+  (measured per clip from `person_map.csv`, ±75°, ±100° for bike mounts / very close sticks), clipped
+  sun views and moments already in the EDL; checks each pick with YOLO at t−0.5/t/t+0.5 for a close
+  person or own bike; ≤ 2 per clip, ≤ 4 looking down. View `assets/broll_sheet.jpg` before using any.
+  Add chosen cutaways to the EDL as ordinary 360 shots (0.8–1.5 s, slow push-in or drift, h_fov ≥
+  the no-upscale value), usually replacing a weaker shot so the duration holds.
 - `assets/edl.csv` written from ONE script holding the shot list (id, clip, in/out, keyframes,
   motion mode, repairs, role, privacy note). Storyboard strip (first/mid/last frame of each shot,
   graded) before any full render.
@@ -185,7 +210,11 @@ rough cut instead. Otherwise:
 
 ## Phase 7: Audio
 
-Default **no audio track** (user preference): skip this phase. Only if the user asks for sound:
+Default **no audio track** (user preference): skip this phase. **Subtitle SFX** (if chosen) are
+synthesised by `94_sfx.py` (pop, tick, pin, whoosh, rise, thud; no samples, no licensing) and mixed by
+`93_text_sfx.py` from the `sfx` column of `assets/overlays.csv` plus `assets/sfx_cues.csv` (whoosh on
+virtual camera turns and the cut into a map), peak ≤ −1.5 dBFS. You can't hear them: report
+measured levels and ask the user to judge by ear. Only if the user asks for real sound:
 ambience with 150 Hz high-pass for wind (DeepFilterNet is a speech enhancer and removes ambience),
 speech-indicator check, 60 ms crossfades, loudnorm to −14 LUFS with TP −1.5 (AAC overshoots).
 
@@ -199,12 +228,21 @@ the data bbox edge), outbound + return as offset "lanes", pin pops, gentle push-
 `Map data © OpenStreetMap contributors`. Labels (if chosen): tracked uppercase, placed off the route
 line, verified against stills and the safe area.
 
-**On-screen text.** Pillow-rendered on the 10-bit timeline via the verified decode/encode path.
-Avenir Next Demi Bold, balanced two-line wrap (no stranded word), upper-middle, 14–80% of the frame
-height (Instagram UI safe area), fade + rise. Backing: soft rounded box at about 80% opacity; bright skies
-need it. Measure **worst-frame contrast ≥ 4.5:1**, with accent colours identified by hue and
-anti-aliased halos excluded from the background (both bugs inflated failures on the first run).
-Keep every line ≥ 1.5 s. Always also export a clean version.
+**On-screen text** (`lib_text.py` + `93_text_sfx.py`; all trip data in `assets/overlays.csv`, example in
+`template/examples/`). No boxes or hard shadows (users found the boxed v6 captions ugly). One style per
+moment: `title` (Futura bold, hook), `clean` (Avenir, captions), `editorial` (Didot italic place name
++ small tracked kicker), `location` (tracked caps + drawn pin), `chip` (outlined pill for facts),
+`kinetic` (word-by-word pop with overshoot, CTA; accent words in the accent colour).
+- Placement: calmest zone (Sobel texture, stable over 3 frames) inside the safe area (14–80% height).
+- Colour: from the pixels BEHIND the text (k-means dominant colour → deep tone of the same hue on bright
+  backgrounds, light tint on dark), accent = complementary hue at contrast ≥ 3:1; worst-frame contrast
+  ≥ 4.5:1 (3:1 for large text). A feathered scrim is the last resort, never a box.
+- Copy rules (CLAUDE.md): emoji where meaningful (Apple Color Emoji, drawn in colour, sized to the text,
+  popping with kinetic words), never on editorial names; **no colons** (the script refuses them); every
+  line ≥ 1.5 s; facts only from the user or strong research.
+- Check cheaply first: `93_text_sfx.py <ver> --board` → `assets/overlay_board.jpg` (one still per
+  overlay), then the full render (`work/timeline_text.mov`, muted preview + `_sfx` preview).
+Always also export a clean version.
 
 ## Phase 9: Rough cut
 
@@ -234,6 +272,8 @@ black after x264 is codec ringing; raising the floor barely helps, so report it,
   yuv420p, 1080×1920, CFR 30, BT.709 tagged, `+faststart`; **no audio track** by default;
   grain `noise=c0s=2:c0f=t+u` on 10-bit, then `scale=sws_dither=ed` to 8-bit (removes encoder
   contouring in hazy skies), luma limiter 16–235.
+- With SFX chosen: `80_export.py <out> --master work/timeline_text.mov --audio work/audio/sfx.wav`
+  (AAC 320k); also a muted copy.
 - `outputs/travel_reel_FINAL_clean.mp4` if on-screen text was added.
 - `outputs/travel_reel_MASTER.mov` (+ `_clean`): ProRes 422 HQ 10-bit.
 - `outputs/travel_reel.otio`: V1 graded shots (copied to `outputs/resolve_media/`), V2 (disabled)
@@ -266,3 +306,10 @@ extras, QC results (only checks that actually ran), source limitations, caption 
 8. **8-bit + grain:** without grain, x264 at CRF 16 leaves blocky contour patches in hazy skies.
 9. **Python `exec` of a script for reuse:** guard pipelines behind functions or `--still`/`--check`
    flags so stills and checks don't re-run the full render.
+10. **v360's initial `yaw=` option must be within ±180°** like the sendcmd values ("yaw out of range"
+    otherwise); `30_render_shot.py` wraps both.
+11. **One-frame checks miss people who walk in.** A B-roll view clean at t had a passer-by at t−0.5;
+    check the whole shot window. And size/edge rules alone miss the holder when the stick is held out
+    sideways (face mid-frame) or on a bike mount (gloves at ±90°): exclude the holder's measured direction.
+12. **Emoji in Pillow:** Apple Color Emoji is a bitmap font; render at its 160 px strike with
+    `embedded_color=True`, then scale. Some Apple emoji carry branded art (🛣️ "CUPERTINO"): view them.

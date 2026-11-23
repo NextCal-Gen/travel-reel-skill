@@ -55,13 +55,18 @@ for s in load_edl():
                                source_range=otio.opentime.TimeRange(otio.opentime.RationalTime(round(s["tin"] * sr), sr),
                                                                     otio.opentime.RationalTime(round(n / RATE * sr), sr))))
 tl.tracks.append(v1); tl.tracks.append(v2)
-import importlib.util as _iu   # v6: markers = the burned-in captions (single source: 92_text_overlays.py OVERLAYS)
-_src = open(os.path.join(ROOT, "scripts", "92_text_overlays.py")).read()
-_ovl = _src[_src.index("OVERLAYS = ["): _src.index("]\n", _src.index("OVERLAYS = [")) + 1]
-_ns = {}; exec(_ovl, _ns)
-OVERLAY = [(a, b - a, txt) for a, b, txt, _sz, _acc in _ns["OVERLAYS"]]
+# markers = the burned-in captions: assets/overlays.csv (93_text_sfx.py); legacy fallback 92_text_overlays.py OVERLAYS
+_csv = os.path.join(ROOT, "assets", "overlays.csv"); OVERLAY = []
+if os.path.exists(_csv):
+    import csv as _csvm
+    OVERLAY = [(float(r["t_in"]), float(r["t_out"]) - float(r["t_in"]), r["text"]) for r in _csvm.DictReader(open(_csv, encoding="utf-8"))]
+elif os.path.exists(os.path.join(ROOT, "scripts", "92_text_overlays.py")):
+    _src = open(os.path.join(ROOT, "scripts", "92_text_overlays.py")).read()
+    _ovl = _src[_src.index("OVERLAYS = ["): _src.index("]\n", _src.index("OVERLAYS = [")) + 1]
+    _ns = {}; exec(_ovl, _ns)
+    OVERLAY = [(a, b - a, txt) for a, b, txt, _sz, _acc in _ns["OVERLAYS"]]
 for t, d, txt in OVERLAY:
-    tl.tracks.markers.append(otio.schema.Marker(name=f"CAPTION (burned in v6): {txt}", marked_range=otio.opentime.TimeRange(
+    tl.tracks.markers.append(otio.schema.Marker(name=f"CAPTION (burned in): {txt}", marked_range=otio.opentime.TimeRange(
         otio.opentime.RationalTime(round(t * RATE), RATE), otio.opentime.RationalTime(round(d * RATE), RATE)),
         color=otio.schema.MarkerColor.YELLOW))
 otio.adapters.write_to_file(tl, os.path.join(OUT, "travel_reel.otio"))

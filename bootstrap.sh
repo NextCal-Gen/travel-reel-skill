@@ -5,6 +5,7 @@
 #   bootstrap.sh --create [--with-df]    build whatever is missing in the toolkit (downloads from
 #                                        PyPI / official GitHub releases / opencv_zoo; tell the user first)
 #   bootstrap.sh --init-project <dir>    create trip folder layout + scripts/env.sh + CLAUDE.md template
+#                                        (+ personal standing defaults from ~/.claude/travel-reel.defaults.md)
 #
 # Toolkit location: $TRAVEL_REEL_TOOLKIT (default ~/travel-reel-toolkit).
 # System packages (Homebrew) are NEVER installed by this script: missing ones are reported with the
@@ -116,7 +117,18 @@ source "$TK/venv/bin/activate"
 EOF
     echo "wrote $P/scripts/env.sh"
   fi
-  [ -f "$P/CLAUDE.md" ] || { cp "$SKILL_DIR/CLAUDE.template.md" "$P/CLAUDE.md" && echo "wrote $P/CLAUDE.md (fill in the trip name)"; }
+  # CLAUDE.md = public template + the user's PERSONAL standing defaults (kept outside this public repo):
+  # the block between the standing-defaults markers is replaced by $TRAVEL_REEL_DEFAULTS if that file exists.
+  DEF="${TRAVEL_REEL_DEFAULTS:-$HOME/.claude/travel-reel.defaults.md}"
+  if [ ! -f "$P/CLAUDE.md" ]; then
+    if [ -f "$DEF" ]; then
+      awk -v def="$DEF" '/<!-- standing-defaults:start -->/{print; while ((getline l < def) > 0) print l; skip=1; next}
+                         /<!-- standing-defaults:end -->/{skip=0} !skip' "$SKILL_DIR/CLAUDE.template.md" > "$P/CLAUDE.md"
+      echo "wrote $P/CLAUDE.md (fill in the trip name; standing defaults from $DEF)"
+    else
+      cp "$SKILL_DIR/CLAUDE.template.md" "$P/CLAUDE.md" && echo "wrote $P/CLAUDE.md (fill in the trip name; no personal defaults file at $DEF)"
+    fi
+  fi
   # pipeline template (tested scripts) - only into a scripts/ folder that has no scripts yet
   if ! ls "$P"/scripts/*.py >/dev/null 2>&1; then
     cp "$SKILL_DIR"/template/scripts/* "$P/scripts/" && cp "$SKILL_DIR/template/README.md" "$P/scripts/README.md" \
