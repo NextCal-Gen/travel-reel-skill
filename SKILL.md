@@ -1,6 +1,6 @@
 ---
 name: travel-reel
-description: Turn raw travel clips (Insta360 360°, iPhone, Samsung, DJI, mixed SDR/HDR/Log) into a professional cinematic 9:16 Instagram Reel with camera-correct color management, conditional shot repair, adaptive aesthetic captions with emoji and sound effects, 360 B-roll and researched destination facts, and approval gates. Use whenever the user asks to edit, cut, grade, reframe or export travel footage or a reel from the raw/ folder, even if they don't say "skill" or "reel".
+description: Turn raw travel clips (Insta360 360°, iPhone, Samsung, DJI, mixed SDR/HDR/Log) into a professional cinematic 9:16 Instagram Reel with camera-correct color management, conditional shot repair, adaptive aesthetic captions with emoji (optional sound effects), 360 B-roll and researched destination facts, and approval gates. Use whenever the user asks to edit, cut, grade, reframe or export travel footage or a reel from the raw/ folder, even if they don't say "skill" or "reel".
 ---
 
 # Cinematic Travel Reel
@@ -70,15 +70,15 @@ is written to the home folder. Check `luts/` for official manufacturer LUTs and 
 
 Ask everything in one AskUserQuestion call (max 4 questions). Apply the **standing defaults** in
 `CLAUDE.md` without asking (e.g. who's on camera, the look); only ask what they don't cover:
-1. **On-screen text:** none / captions (hook + captions + CTA; ask the CTA wording) / captions + subtitle SFX.
+1. **On-screen text:** none / captions (hook + captions + CTA; ask the CTA wording).
 2. **Extras (multi-select):** route map (with or without labels) / B-roll cutaways from 360 clips /
    destination fact cards (web-researched) / other 360 effects (tiny planet, whip, speed ramps). Default none.
 3. **Facts not visible in footage:** start city, place names, map links or GPX, distance, the
    user's names for moments. Never invent them; resolve map links to coordinates yourself.
 4. **Who holds the camera / rides:** only if `CLAUDE.md` has no standing default for it.
 
-Audio defaults to **none** (no music ever, no ambience); the only sound is the subtitle SFX track,
-and only if chosen in question 1. Don't ask about music.
+Audio defaults to **none** (no music ever, no ambience, no sound effects). Don't ask about music or
+SFX and don't offer SFX in the kickoff; subtitle SFX are added only when the user specifically asks.
 
 ## Phase 0.6: Destination research (if fact cards were chosen, or captions name places)
 
@@ -210,7 +210,8 @@ rough cut instead. Otherwise:
 
 ## Phase 7: Audio
 
-Default **no audio track** (user preference): skip this phase. **Subtitle SFX** (if chosen) are
+Default **no audio track** (user preference): skip this phase. **Subtitle SFX are opt-in only**
+(add them only when the user specifically asks; `93_text_sfx.py` ignores cues without `--sfx`). They are
 synthesised by `94_sfx.py` (pop, tick, pin, whoosh, rise, thud; no samples, no licensing) and mixed by
 `93_text_sfx.py` from the `sfx` column of `assets/overlays.csv` plus `assets/sfx_cues.csv` (whoosh on
 virtual camera turns and the cut into a map), peak ≤ −1.5 dBFS. You can't hear them: report
@@ -241,7 +242,7 @@ moment: `title` (Futura bold, hook), `clean` (Avenir, captions), `editorial` (Di
   popping with kinetic words), never on editorial names; **no colons** (the script refuses them); every
   line ≥ 1.5 s; facts only from the user or strong research.
 - Check cheaply first: `93_text_sfx.py <ver> --board` → `assets/overlay_board.jpg` (one still per
-  overlay), then the full render (`work/timeline_text.mov`, muted preview + `_sfx` preview).
+  overlay), then the full render (`work/timeline_text.mov`, muted preview; `_sfx` preview only with `--sfx`).
 Always also export a clean version.
 
 ## Phase 9: Rough cut
@@ -272,7 +273,8 @@ black after x264 is codec ringing; raising the floor barely helps, so report it,
   yuv420p, 1080×1920, CFR 30, BT.709 tagged, `+faststart`; **no audio track** by default;
   grain `noise=c0s=2:c0f=t+u` on 10-bit, then `scale=sws_dither=ed` to 8-bit (removes encoder
   contouring in hazy skies), luma limiter 16–235.
-- With SFX chosen: `80_export.py <out> --master work/timeline_text.mov --audio work/audio/sfx.wav`
+- Only if the user asked for SFX: `93_text_sfx.py <ver> --sfx`, then
+  `80_export.py <out> --master work/timeline_text.mov --audio work/audio/sfx.wav`
   (AAC 320k); also a muted copy.
 - `outputs/travel_reel_FINAL_clean.mp4` if on-screen text was added.
 - `outputs/travel_reel_MASTER.mov` (+ `_clean`): ProRes 422 HQ 10-bit.

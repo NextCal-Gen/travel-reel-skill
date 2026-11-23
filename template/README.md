@@ -32,8 +32,8 @@ this trip's footage; keep the code around it.
 | Route map (optional) | `90_fetch_osm.sh`, `91_route_map.py` | **trip** (91; bbox in 90) | `PTS` pins, routes, labels, bbox |
 | Destination research (optional) | WebSearch → `assets/research.md` | – | graded facts (SKILL.md Phase 0.6) |
 | B-roll from 360 (optional) | `95_broll_360.py` → view `assets/broll_sheet.jpg` | generic | add picks to `23_edl.py` as 360 shots |
-| SFX library (optional) | `94_sfx.py` | generic | – (writes `assets/sfx/*.wav`) |
-| On-screen text + SFX (optional) | `93_text_sfx.py <ver> --board`, then `93_text_sfx.py <ver>` | generic | `assets/overlays.csv`, `assets/sfx_cues.csv` (see `examples/`) |
+| SFX library (only if the user asks for SFX) | `94_sfx.py` | generic | – (writes `assets/sfx/*.wav`) |
+| On-screen text (optional; SFX opt-in with `--sfx`) | `93_text_sfx.py <ver> --board`, then `93_text_sfx.py <ver> [--sfx]` | generic | `assets/overlays.csv`, `assets/sfx_cues.csv` (see `examples/`) |
 | Rough cut | `60_assemble.py <ver> --mute` → `61_qc.py <file> [master]` | generic | – |
 | 🛑 Gate 3 (user checks faces on the rough cut) | | | |
 | Finishing | `70_shot_match.py` → `71_finishing_trims.py` | **trip** | ground regions; trims for measured outliers |

@@ -1,4 +1,6 @@
-"""Phase 8: on-screen text (lib_text design system) + optional synthesised SFX, on the 10-bit timeline.
+"""Phase 8: on-screen text (lib_text design system) + OPT-IN synthesised SFX, on the 10-bit timeline.
+SFX are OFF by default (user rule): the sfx column and sfx_cues.csv are ignored unless --sfx is given,
+and --sfx is used only when the user specifically asked for sound effects.
 Generic: all trip data lives in two CSVs (no code edits per trip).
 
 assets/overlays.csv   t_in,t_out,style,text,kicker,accent_words,sfx
@@ -14,10 +16,10 @@ Placement and colours are chosen per overlay by lib_text.choose() from 3 frames 
 (calm zone in the safe area, colours from the pixels behind the text, worst-frame contrast >= 4.5:1,
 3:1 for large text; feathered scrim only if nothing passes). Report: assets/overlay_report.csv.
 
-Usage: 93_text_sfx.py <ver> [--src work/timeline_prores.mov] [--board]
+Usage: 93_text_sfx.py <ver> [--src work/timeline_prores.mov] [--board] [--sfx]
   --board   cheap check: one still per overlay -> assets/overlay_board.jpg (no full render)
-Outputs: work/timeline_text.mov (ProRes 422 HQ 10-bit), work/audio/sfx.wav (if any cue),
-         previews/rough_cut_v<ver>.mp4 (muted) and previews/rough_cut_v<ver>_sfx.mp4 (if any cue)
+Outputs: work/timeline_text.mov (ProRes 422 HQ 10-bit), previews/rough_cut_v<ver>.mp4 (muted);
+         with --sfx also work/audio/sfx.wav and previews/rough_cut_v<ver>_sfx.mp4
 Needs assets/sfx/*.wav from 94_sfx.py when cues are used."""
 import csv, os, subprocess, sys
 import cv2, numpy as np, soundfile as sf
@@ -90,21 +92,23 @@ while True:
     enc.stdin.write((np.clip(rgb, 0, 1) * 65535 + 0.5).astype("<u2").tobytes()); i += 1
 enc.stdin.close(); enc.wait(); print("text frames", i)
 
-# ---- SFX track ----
+# ---- SFX track (only with --sfx) ----
+SFX = "--sfx" in sys.argv
 cues = []
 for r in ov:
     fx = (r.get("sfx") or "").strip()
     if fx == "ticks": cues += [(r["t_in"] + 0.10 * k, "tick", 0.9) for k in range(len(r["text"].split()))]   # matches lib_text kinetic stagger
     elif fx: cues.append((r["t_in"], fx, 0.9 if fx == "thud" else 0.8))
 extra = os.path.join(ROOT, "assets", "sfx_cues.csv")
-if os.path.exists(extra):
+if SFX and os.path.exists(extra):
     cues += [(float(c["t"]), c["sound"], float(c.get("gain") or 0.7)) for c in csv.DictReader(open(extra))]
 VF = "scale=in_range=tv:out_range=tv,format=yuv420p,limiter=min=16:max=235:planes=1"
 TAGS = ["-color_range", "tv", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709"]
 X264 = ["-c:v", "libx264", "-preset", "slow", "-crf", "18", "-profile:v", "high", "-r", "30"]
 muted = os.path.join(ROOT, "previews", f"rough_cut_v{ver}.mp4")
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", dst, "-vf", VF, *X264, *TAGS, "-an", "-movflags", "+faststart", muted], check=True)
-print(muted)
+print(muted + ("" if SFX else "   (no SFX: not requested)"))
+if not SFX: cues = []
 if cues:
     mix = np.zeros((int(np.ceil(dur_tl * SR)), 2), np.float32)
     for t, nm, g in cues:

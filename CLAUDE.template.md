@@ -9,7 +9,8 @@ Raw travel clips in, cinematic Instagram Reel out. The full workflow lives in th
 - Timeline fps: 30 (change only if justified)
 - Look: natural cinematic: warm sun, rich greens, clean skies, soft highlight roll-off
 - Look reference (optional): references/look/
-- Audio: **none** (no music, no ambience). Subtitle sound effects only if chosen at kickoff.
+- Audio: **none** (no music, no ambience, no sound effects). Subtitle sound effects (pop, pin, whoosh...)
+  only if I specifically ask for them; never offer or add them by default.
 - Faces: the camera holder must never appear (answer "who holds the camera" at kickoff);
   other people in frame are fine unless I say otherwise.
 
@@ -22,8 +23,7 @@ None yet. Ask the kickoff questions; when an answer repeats across trips, save i
 <!-- standing-defaults:end -->
 
 ## Ask me once at kickoff (one batch, before Phase 1), then don't ask again
-1. **On-screen text?** None / captions (hook + captions + CTA; what the CTA says) / captions + subtitle
-   sound effects (pop, pin, whoosh...).
+1. **On-screen text?** None / captions (hook + captions + CTA; what the CTA says).
 2. **Extras?** Any of: route map (with or without labels), B-roll cutaways from 360 clips, destination fact
    cards (web-researched, sourced), other 360 effects (tiny planet, whip transitions, speed ramps). Default none.
 3. **Facts you can't see in the footage:** start city, place names, map links or GPX, distance, what I call
