@@ -42,7 +42,10 @@ check_system() {
   command -v mediainfo >/dev/null && pass "mediainfo $(mediainfo --Version 2>/dev/null | tail -1 | sed 's/.*- //')" || miss "mediainfo" "brew install media-info"
   command -v exiftool >/dev/null && pass "exiftool $(exiftool -ver)" || miss "exiftool" "brew install exiftool"
   [ -x "$PY312" ] && pass "python 3.12 ($("$PY312" --version 2>&1))" || miss "python 3.12" "brew install python@3.12"
-  [ -f /System/Library/Fonts/Avenir\ Next.ttc ] && pass "Avenir Next font (text/map labels)" || miss "Avenir Next font" "macOS system font; use another installed font"
+  for font in "Avenir Next.ttc" "Supplemental/Futura.ttc" "Supplemental/Didot.ttc" "Optima.ttc" "Apple Color Emoji.ttc"; do
+    [ -f "/System/Library/Fonts/$font" ] && pass "font $(basename "$font" .ttc) (captions/map labels)" \
+      || miss "font $(basename "$font" .ttc)" "macOS system font missing at /System/Library/Fonts/$font; edit lib_text.py F/EMOJI_FONT to an installed font"
+  done
 }
 
 check_toolkit() {
@@ -81,14 +84,25 @@ create() {
   fi
   if ! [ -x "$TK/rife/rife-ncnn-vulkan" ]; then
     echo "Downloading RIFE (436 MB, official GitHub release)"
-    d=$(mktemp -d); curl -sL -o "$d/rife.zip" "$RIFE_URL" && unzip -q "$d/rife.zip" -d "$d/x" \
+    d=$(mktemp -d); curl -fsSL -o "$d/rife.zip" "$RIFE_URL" && unzip -q "$d/rife.zip" -d "$d/x" \
       && mv "$d/x/rife-ncnn-vulkan-20221029-macos" "$TK/rife" && chmod +x "$TK/rife/rife-ncnn-vulkan"; rm -rf "$d"
   fi
-  if ! [ -f "$TK/models/face_detection_yunet_2023mar.onnx" ]; then
-    curl -sL -o "$TK/models/face_detection_yunet_2023mar.onnx" "$YUNET_URL"
-    [ "$(shasum -a 256 "$TK/models/face_detection_yunet_2023mar.onnx" | cut -d' ' -f1)" = "$YUNET_SHA" ] || { echo "YuNet sha256 mismatch: removed"; rm -f "$TK/models/face_detection_yunet_2023mar.onnx"; }
+  if [ -f "$TK/models/face_detection_yunet_2023mar.onnx" ] && [ "$(shasum -a 256 "$TK/models/face_detection_yunet_2023mar.onnx" | cut -d' ' -f1)" != "$YUNET_SHA" ]; then
+    echo "YuNet sha256 mismatch: re-downloading"; rm -f "$TK/models/face_detection_yunet_2023mar.onnx"
   fi
-  [ -f "$TK/models/yolo11n.pt" ] || curl -sL -o "$TK/models/yolo11n.pt" "$YOLO_URL"
+  if ! [ -f "$TK/models/face_detection_yunet_2023mar.onnx" ]; then
+    curl -fsSL -o "$TK/models/face_detection_yunet_2023mar.onnx" "$YUNET_URL" || rm -f "$TK/models/face_detection_yunet_2023mar.onnx"
+    [ ! -f "$TK/models/face_detection_yunet_2023mar.onnx" ] || [ "$(shasum -a 256 "$TK/models/face_detection_yunet_2023mar.onnx" | cut -d' ' -f1)" = "$YUNET_SHA" ] || { echo "YuNet sha256 mismatch: removed"; rm -f "$TK/models/face_detection_yunet_2023mar.onnx"; }
+  fi
+  # a partial or failed download (e.g. a saved 404 page) must not block future --create runs
+  if [ -f "$TK/models/yolo11n.pt" ] && [ "$(stat -f %z "$TK/models/yolo11n.pt")" != "$YOLO_SIZE" ]; then
+    echo "YOLO11n size mismatch: re-downloading"; rm -f "$TK/models/yolo11n.pt"
+  fi
+  if ! [ -f "$TK/models/yolo11n.pt" ]; then
+    curl -fsSL -o "$TK/models/yolo11n.pt" "$YOLO_URL" || rm -f "$TK/models/yolo11n.pt"
+    [ ! -f "$TK/models/yolo11n.pt" ] || [ "$(stat -f %z "$TK/models/yolo11n.pt")" = "$YOLO_SIZE" ] \
+      || { echo "YOLO11n size mismatch: removed"; rm -f "$TK/models/yolo11n.pt"; }
+  fi
   echo "create done"
 }
 

@@ -57,7 +57,7 @@ timelines, masters) and warn early if it's short. Reference table of what the to
 | ffmpeg/ffprobe (with zscale, libplacebo, libvmaf, v360, lut3d) | core | required |
 | mediainfo, exiftool | metadata, camera model | ffprobe only |
 | Python: colour-science, opencolorio, numpy, opencv, librosa, scenedetect, Pillow | color, analysis, text | ffmpeg filters |
-| Gyroflow (CLI) | gyro stabilization | ffmpeg vidstab |
+| Gyroflow (CLI) | gyro stabilization, **only if the file carries gyro data** (Insta360 Studio exports strip it; stock phone camera files usually lack usable data) | ffmpeg vidstab |
 | Insta360 Studio / Media SDK exports | stitched equirect for .insv | cannot process raw .insv |
 | rife-ncnn-vulkan | slow motion | minterpolate (worse) |
 | OpenTimelineIO (+ `otio-fcp-adapter` for FCPXML) | export edit to DaVinci Resolve | .otio only |
@@ -118,8 +118,10 @@ bit depth, primaries, transfer, range (measured), Log/HDR profile, projection, r
 conversion, confidence (high/med/low), evidence, content, notes.
 
 🛑 **Gate 1:** show a compact summary table plus any low-confidence clips. Wait, **unless**
-`CLAUDE.md` allows auto-continue and every clip is high confidence: then post the summary and
-go straight on (the user can still interrupt). Any medium/low confidence clip → stop and wait.
+`CLAUDE.md` has `Gate 1 auto-continue: yes` and every clip is high confidence: then post the
+summary and go straight on (the user can still interrupt). Any medium/low confidence clip → stop and wait.
+**High confidence** means all three agree: metadata, the measured range (step 2) and the visual
+check (step 3). Any disagreement or missing evidence = medium at best.
 
 ## Phase 2: Input transforms (per camera, technically correct only)
 
@@ -164,7 +166,14 @@ Log every trigger, the visual confirmation and the decision in `assets/repairs.c
 **Standing look in `CLAUDE.md` (e.g. Look 2 "warm cinematic"):** reuse that look's `.cube`
 (`assets/looks/look2_warm_cinematic.cube`, copied from `template/looks/` by `--init-project`
 together with the Insta360/Samsung camera-match LUTs; built by `scripts/15_build_luts.py`). Skip steps 2 and 4 and Gate 2. Still do step 1 (camera match)
-for new cameras or clearly different light, then verify step 3. The look is reviewed on the Gate 3
+when a re-measure trigger fires, then verify step 3. **Re-measure triggers:**
+- a camera model not covered by the bundled `base_<camera>.cube` LUTs, or
+- this trip's region stats (the `regions()` measure from `14_camera_match_measure.py`: clear sky,
+  green, dark stone; median over sampled frames per camera, after the input transform) differ from
+  that camera's `*_all` entry in `assets/looks/camera_match_stats_kanakapura.json` by ΔE76 > 6 in any
+  region present in both, or tone p50 differs by > 0.08.
+Report the measured deltas either way. These thresholds are starting values: if a trip re-measures
+and the new LUTs look no different, raise them; if a reused LUT looks off, lower them. The look is reviewed on the Gate 3
 rough cut instead. Otherwise:
 
 1. Match cameras to a neutral base from measured region statistics (sky, foliage, neutrals),
@@ -183,8 +192,8 @@ rough cut instead. Otherwise:
   PySceneDetect on the proxies.
 - **360 direction sheets:** 6 yaws × 1 frame/s per clip, viewed. Note where the **camera holder** is
   and choose framings away from them. Privacy rule: only the holder must never appear (face, body,
-  hands, gloves); passers-by are fine unless the user says otherwise. No automated per-frame face
-  scans of the reel: the user reviews the rough cut.
+  hands, gloves); passers-by are fine unless the user says otherwise. No automated scans for
+  passers-by: the user reviews the rough cut (plus the holder check in Phase 9).
 - **B-roll from 360 (if chosen):** `95_broll_360.py` scans every 360 clip (every 2 s, 12 yaws × 3
   pitches at the no-upscale h_fov) for unused, colourful, detailed views; skips the holder's direction
   (measured per clip from `person_map.csv`, ±75°, ±100° for bike mounts / very close sticks), clipped
@@ -238,9 +247,9 @@ moment: `title` (Futura bold, hook), `clean` (Avenir, captions), `editorial` (Di
 - Colour: from the pixels BEHIND the text (k-means dominant colour → deep tone of the same hue on bright
   backgrounds, light tint on dark), accent = complementary hue at contrast ≥ 3:1; worst-frame contrast
   ≥ 4.5:1 (3:1 for large text). A feathered scrim is the last resort, never a box.
-- Copy rules (CLAUDE.md): emoji where meaningful (Apple Color Emoji, drawn in colour, sized to the text,
-  popping with kinetic words), never on editorial names; **no colons** (the script refuses them); every
-  line ≥ 1.5 s; facts only from the user or strong research.
+- Copy rules: follow the caption rules in `CLAUDE.md` (emoji, colons, boxes). Technical side: Apple
+  Color Emoji drawn in colour, sized to the text, popping with kinetic words; the script refuses colons;
+  every line ≥ 1.5 s; facts only from the user or strong research.
 - Check cheaply first: `93_text_sfx.py <ver> --board` → `assets/overlay_board.jpg` (one still per
   overlay), then the full render (`work/timeline_text.mov`, muted preview; `_sfx` preview only with `--sfx`).
 Always also export a clean version.
@@ -250,8 +259,15 @@ Always also export a clean version.
 Render `previews/rough_cut_vN.mp4` (1080×1920, 30 fps), run Phase 11 QC (minus the final-only
 items) and view a 1 fps contact sheet of the actual output.
 
+**Holder check** (backs up the user's manual review; pitfall 11 shows spot checks miss things):
+run `50_privacy_scan.py` on the rendered shots and use **only the near-person frames** (person box
+> 35% of frame height), ignoring passers-by and distant faces. Merge consecutive hits into time
+ranges, view a frame from each range, and list the ones that could be the holder (body, hands,
+gloves, stick shadow) as rough-cut timestamps. Never reframe or cut on your own from this list.
+
 🛑 **Gate 3:** report composition, color, motion, timing, sharpness, transitions, processing
-errors, and what changed since the last version. **The user checks faces/privacy on this cut.**
+errors, the holder-check timestamps (or "none found"), and what changed since the last version.
+**The user checks faces/privacy on this cut.**
 Wait for approval or comments.
 
 ## Phase 10: Finishing pass (after approval)

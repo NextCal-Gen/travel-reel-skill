@@ -9,6 +9,8 @@ Raw travel clips in, cinematic Instagram Reel out. The full workflow lives in th
 - Timeline fps: 30 (change only if justified)
 - Look: natural cinematic: warm sun, rich greens, clean skies, soft highlight roll-off
 - Look reference (optional): references/look/
+- Opener: <e.g. "riding POV hook" / "destination reveal first"; leave blank to let the footage decide>
+- Gate 1 auto-continue: no  (yes = skip the inventory stop when every clip is high confidence)
 - Audio: **none** (no music, no ambience, no sound effects). Subtitle sound effects (pop, pin, whoosh...)
   only if I specifically ask for them; never offer or add them by default.
 - Faces: the camera holder must never appear (answer "who holds the camera" at kickoff);
@@ -22,13 +24,9 @@ None yet. Ask the kickoff questions; when an answer repeats across trips, save i
   if I don't want it.
 <!-- standing-defaults:end -->
 
-## Ask me once at kickoff (one batch, before Phase 1), then don't ask again
-1. **On-screen text?** None / captions (hook + captions + CTA; what the CTA says).
-2. **Extras?** Any of: route map (with or without labels), B-roll cutaways from 360 clips, destination fact
-   cards (web-researched, sourced), other 360 effects (tiny planet, whip transitions, speed ramps). Default none.
-3. **Facts you can't see in the footage:** start city, place names, map links or GPX, distance, what I call
-   moments (e.g. "river crossing"). Don't invent any of these.
-4. **Who holds the camera / rides?** (skip if a standing default covers it)
+## Kickoff
+Ask the Phase 0.5 kickoff questions from the skill once, in one batch, before Phase 1. Skip anything the
+config or standing defaults above already answer. Don't ask again later in the trip.
 
 ## Caption copy rules
 - Emoji where they add meaning (🏍️ ride, 🛕 temple, 🪷 lily pond, 📍 distance, 📩 DM CTA); none on serif
@@ -39,8 +37,9 @@ None yet. Ask the kickoff questions; when an answer repeats across trips, save i
 ## Preferences
 - Keep 360 clips natural: no extra 360 effects unless chosen at kickoff.
 - If I pick on-screen text: also export a **clean version** without it.
-- **No automated face/privacy scans of the reel.** Pick framings away from the camera holder; I review
-  the rough cut myself and flag anything before final approval.
+- **No automated scans for passers-by.** Pick framings away from the camera holder; I review the rough
+  cut myself before final approval. One exception: a **holder check** on the rough cut (near-person
+  detections only, listed as timestamps for me to look at; never auto-edited).
 
 ## Folder layout
 - Tools: shared toolkit at `~/travel-reel-toolkit` (venv, RIFE, models, caches); one copy for all trips.
@@ -57,8 +56,8 @@ None yet. Ask the kickoff questions; when an answer repeats across trips, save i
 - Identify camera, projection and color profile of every clip before any processing.
 - Never dewarp flat footage. Never apply a Log LUT unless the Log profile is confirmed.
 - Corrections are applied only when a measured diagnostic crosses its threshold. Log why.
-- Stop at every approval gate and wait for my reply (except where standing defaults allow
-  auto-continue). Never export finals without an approved rough cut.
+- Stop at every approval gate and wait for my reply (only exception: Gate 1, when
+  `Gate 1 auto-continue: yes` above and every clip is high confidence). Never export finals without an approved rough cut.
 - Never claim a check was done unless it actually ran. Report source limitations honestly.
 - No voiceover, no music, no logos, no copyrighted reference footage.
 - No burned-in text unless I opted in at kickoff (captions, map labels); then also export a clean version.
