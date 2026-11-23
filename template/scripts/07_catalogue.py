@@ -130,9 +130,19 @@ def extract(path):
                 if dt and dt.year > 1970:
                     cands.append((o is None, prio, dt, o, k))
     t, off, src = None, None, None
+    android_tz = None                            # Samsung/Android: UTC dates + the offset in a separate tag (e.g. +0530)
+    for k, v in d.items():
+        if k.endswith("AndroidTimeZone"):
+            m = re.fullmatch(r"\s*([+-])(\d{2}):?(\d{2})\s*", str(v))
+            if m: android_tz = timedelta(hours=int(m[2]), minutes=int(m[3])) * (1 if m[1] == "+" else -1)
     if cands:
         no_off, _, dt, o, k = sorted(cands, key=lambda c: (c[0], c[1]))[0]
-        t, off, src = (dt, None, k + " (no offset: assumed UTC per QuickTime spec)") if no_off else (dt - o, o, k)
+        if not no_off:
+            t, off, src = dt - o, o, k
+        elif android_tz is not None:
+            t, off, src = dt, android_tz, k + " (UTC) + AndroidTimeZone"
+        else:
+            t, off, src = dt, None, k + " (no offset: assumed UTC per QuickTime spec)"
     if t is None:
         for k, v in d.items():
             if k.endswith("FileModifyDate"):
@@ -299,21 +309,26 @@ if GEOCODE:
     json.dump(cache, open(cache_p, "w"), indent=1, ensure_ascii=False)
 
 stops = [v for v in vrows if v["kind"] == "stop"]
+unknown = [v for v in vrows if v["kind"] == "unknown"]
 transits = [v for v in vrows if v["kind"] == "transit"] + [v for v, raw in zip(vrows, visits) if raw["gap_before"]]
+places = len(stops) + len(unknown)          # 'unknown' = no GPS: a place or a ride, judged from the footage
 if len(days) > 1:
     tier = "multi-day"
-elif transits and len(stops) <= 2:          # 'unknown' visits are judged visually by Claude
-    tier = "ride-and-stop"
-elif len(stops) >= 2:
-    tier = "day-trip"
-else:
+elif len(vrows) == 1:
     tier = "single-visit"
+elif transits and places <= 2:
+    tier = "ride-and-stop"
+else:
+    tier = "day-trip"
+if unknown and len(vrows) > 1:
+    warn.append(f"{len(unknown)} of {len(vrows)} visits have no GPS ('unknown'): tier '{tier}' is from time gaps only; "
+                f"confirm from the contact sheets (a ride with no GPS looks like a separate visit)")
 
 os.makedirs(A, exist_ok=True)
 for name, data in (("catalogue.csv", crows), ("visits.csv", vrows)):
     with open(os.path.join(A, name), "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(data[0].keys())); w.writeheader(); w.writerows(data)
-scope = dict(tier=tier, days=len(days), clips=len(rows), stops=len(stops),
+scope = dict(tier=tier, days=len(days), clips=len(rows), visits=len(vrows), stops=len(stops), unknown_visits=len(unknown),
              transit_legs=len([v for v in vrows if v["kind"] == "transit"]),
              transit_gaps=len([1 for raw in visits if raw["gap_before"]]),
              trip_utc_offset=str(trip_off) if trip_off is not None else None,

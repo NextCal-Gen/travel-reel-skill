@@ -17,7 +17,11 @@ trip and a multi-day trip all use the same steps; only the proposed menu changes
   clock doesn't overlap the others, no offset at all (ask for `--tz-offset` or derive it from GPS),
   clips with no timestamp. Wrong clocks put clips in the wrong visit and the wrong day.
 - **Clips without GPS** (Insta360 Studio exports) are grouped by time. Borrow a location from a
-  phone clip only inside the same visit, and mark it borrowed.
+  phone clip only inside the same visit, and mark it borrowed. Their visits are `unknown` but still
+  count toward the tier (several time-separated visits = not single-visit); scope.json warns, and you
+  confirm the tier from the contact sheets (a GPS-less ride shows up as its own short visit).
+- **Time zones**: iPhone dates carry the offset; Samsung/Android stores it separately
+  (`AndroidTimeZone`, read automatically); Insta360 clocks have none, so they take the trip's offset.
 - **Single visit** → skip the rest of this file and run the normal workflow at the project root.
 
 ## P.2 Label visits (look, don't guess)
