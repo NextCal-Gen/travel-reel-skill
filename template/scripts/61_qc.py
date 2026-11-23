@@ -1,6 +1,7 @@
-"""Phase 11: automated QC of a render. Usage: 61_qc.py <file.mp4> [reference_prores.mov]
+"""Phase 11: automated QC of a render. Usage: 61_qc.py <file.mp4> [reference_prores.mov] [--target MIN MAX]
 Runs (and reports only what actually ran):
-  duration (ffprobe) vs 18-25 s target / 30 s hard max; stream format checks
+  duration (ffprobe) vs the target range (default 18-25 s, --target MIN MAX) / 30 s hard max; stream format checks
+  location metadata: exiftool finds no GPS / ISO6709 / location tags
   blackdetect, freezedetect, flash frames (single-frame luma spikes from signalstats)
   signalstats: out-of-legal-range luma (<16 / >235) and frames with clipped highlights
   VMAF + SSIM vs the graded ProRes timeline (encode fidelity), if a reference is given
@@ -12,7 +13,11 @@ import cv2, numpy as np
 sys.path.insert(0, os.path.dirname(__file__))
 from lib_reel import ROOT, to_rgb
 
-f = sys.argv[1]; ref = sys.argv[2] if len(sys.argv) > 2 else None
+args = [a for a in sys.argv[1:]]
+target = (18.0, 25.0)
+if "--target" in args:                       # per-reel range from the plan, e.g. --target 12 18
+    i = args.index("--target"); target = (float(args[i + 1]), float(args[i + 2])); del args[i:i + 3]
+f = args[0]; ref = args[1] if len(args) > 1 else None
 name = os.path.splitext(os.path.basename(f))[0]
 R = {"file": f}
 
@@ -26,7 +31,8 @@ pr = json.loads(run(["ffprobe", "-v", "error", "-show_format", "-show_streams", 
 v = next(s for s in pr["streams"] if s["codec_type"] == "video"); a = next((s for s in pr["streams"] if s["codec_type"] == "audio"), None)
 dur = float(pr["format"]["duration"])
 R["duration_s"] = dur
-R["duration_ok"] = 18 <= dur <= 25
+R["duration_target_s"] = list(target)
+R["duration_ok"] = target[0] <= dur <= target[1]
 R["under_hard_max_30s"] = dur <= 30
 R["video"] = {k: v.get(k) for k in ("codec_name", "profile", "width", "height", "pix_fmt", "r_frame_rate", "avg_frame_rate",
                                     "color_range", "color_primaries", "color_transfer", "color_space")}
@@ -35,6 +41,16 @@ R["av_alignment"] = dict(video_start=float(v.get("start_time", 0)), audio_start=
                          video_dur=float(v.get("duration", 0)), audio_dur=float(a.get("duration", 0)) if a else None)
 R["av_alignment"]["dur_diff_ms"] = (round(abs(R["av_alignment"]["video_dur"] - R["av_alignment"]["audio_dur"]) * 1000, 1)
                                     if a else "n/a: no audio stream")
+
+# --- location metadata: nothing GPS-like may survive into a deliverable
+ex = run(["exiftool", "-j", "-a", "-G1", "-ee", "-api", "LargeFileSupport=1", f])
+if ex.returncode == 0 and ex.stdout.strip():
+    tags = json.loads(ex.stdout)[0]
+    gps = sorted(k for k in tags if re.search(r"GPS|ISO6709|Location", k, re.I))
+    R["gps_metadata_tags"] = gps
+    R["gps_metadata_ok"] = not gps
+else:
+    R["gps_metadata_ok"] = "not checked: exiftool unavailable"
 
 # --- black / freeze
 e = run(["ffmpeg", "-hide_banner", "-i", f, "-vf", "blackdetect=d=0.1:pix_th=0.10,freezedetect=n=0.001:d=0.5", "-an", "-f", "null", "-"]).stderr

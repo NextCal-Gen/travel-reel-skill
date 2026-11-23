@@ -1,0 +1,13 @@
+{
+  "_comment": "Visit types for multi-reel planning. Add your own types or OSM tags freely; the skill reads this file, nothing is hardcoded. Keys under osm are 'category:type' from Nominatim jsonv2 ('category:*' matches any type).",
+  "types": {
+    "stay":     {"label": "Stay / room tour", "osm": ["tourism:hotel", "tourism:hostel", "tourism:guest_house", "tourism:apartment", "tourism:motel", "tourism:chalet", "tourism:camp_site"], "location_default": "hide"},
+    "cafe":     {"label": "Cafe",             "osm": ["amenity:cafe"], "location_default": "ask"},
+    "food":     {"label": "Food / street food","osm": ["amenity:restaurant", "amenity:fast_food", "amenity:food_court", "amenity:bar", "amenity:pub"], "location_default": "ask"},
+    "nature":   {"label": "Nature (lake, hill, beach, waterfall, park)", "osm": ["natural:*", "waterway:*", "leisure:park", "leisure:nature_reserve", "landuse:forest"], "location_default": "ask"},
+    "heritage": {"label": "Heritage / temple / museum", "osm": ["historic:*", "amenity:place_of_worship", "tourism:museum", "tourism:attraction", "tourism:viewpoint"], "location_default": "ask"},
+    "market":   {"label": "Street / market",  "osm": ["shop:*", "amenity:marketplace", "place:square"], "location_default": "ask"},
+    "transit":  {"label": "Ride / transit leg","osm": ["highway:*", "railway:*", "route:*"], "location_default": "ask"},
+    "other":    {"label": "Other",            "osm": [], "location_default": "ask"}
+  }
+}

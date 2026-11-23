@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source scripts/env.sh)",
+      "Bash(. scripts/env.sh)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(bash scripts/:*)",
+      "Bash(./scripts/:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(ffprobe:*)",
+      "Bash(exiftool:*)",
+      "Bash(mediainfo:*)",
+      "Bash(caffeinate:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(du:*)",
+      "Bash(df:*)",
+      "WebSearch"
+    ],
+    "deny": [
+      "Bash(rm -rf raw:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

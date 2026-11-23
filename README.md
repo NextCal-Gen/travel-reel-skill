@@ -13,6 +13,9 @@ in Claude Code from a trip folder.
 | `template/scripts/` | The tested pipeline (see `template/README.md` for run order + what to edit per trip) |
 | `template/looks/` | Standing look (Look 2 "warm cinematic") + Insta360/Samsung camera-match LUTs |
 | `requirements-*.lock` | Exact Python package versions for the shared toolkit |
+| `references/planning.md` | Multi-reel mode: visits from time + GPS, reel menu per tier, per-reel location show/hide, autopilot |
+| `visit_types.json` | Editable visit types and OSM tag mapping (copied into each project's `assets/`) |
+| `template/settings.json` | Permission allowlist for unattended runs (copied to each project's `.claude/settings.json`) |
 
 ## Setup on a new Mac (Apple silicon)
 
@@ -53,7 +56,9 @@ my-trip/
 ├── previews/finishing_comparison/
 └── outputs/
 ```
-Then open Claude Code in `my-trip/` and run `/travel-reel`.
+Then open Claude Code in `my-trip/` and run `/travel-reel`. One cafe visit or a 14-day trip: the skill
+detects the scope from the clips and, for several places, proposes a menu of reels (each built in
+`reels/<id>/`, sharing the raw clips and proxies).
 
 ## Updating the skill
 

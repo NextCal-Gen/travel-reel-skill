@@ -17,6 +17,8 @@ this trip's footage; keep the code around it.
 | Contact sheets (view them) | `03_contact_sheets.py` | generic | – |
 | Inventory | `06_write_inventory.py` | **trip** | `V = {...}` per clip: camera, type, content, privacy, notes (from viewing) |
 | 🛑 Gate 1 (auto-continue if all high confidence) | | | |
+| Catalogue + visits (multi-reel) | `07_catalogue.py [--geocode]` → `assets/visits.csv`, `scope.json` | generic | – (thresholds via flags) |
+| Per-reel project (multi-reel) | `bootstrap.sh --init-reel <project> <id>` | – | `reel.md` in the reel folder |
 | Decode regression test | `17_verify_decode.py` | **trip** | `CASES`: one clip per source type (yuvj / mis-tagged / rotated) |
 | Input transforms | `10_input_transforms.py` | generic | – |
 | Look (only if NOT using the standing look) | `14_camera_match_measure.py` → `15_build_luts.py` → `16_look_grid.py` | **trip** (14, 16) | matched-scene clips/times; grid shots |
@@ -34,7 +36,7 @@ this trip's footage; keep the code around it.
 | B-roll from 360 (optional) | `95_broll_360.py` → view `assets/broll_sheet.jpg` | generic | add picks to `23_edl.py` as 360 shots |
 | SFX library (only if the user asks for SFX) | `94_sfx.py` | generic | – (writes `assets/sfx/*.wav`) |
 | On-screen text (optional; SFX opt-in with `--sfx`) | `93_text_sfx.py <ver> --board`, then `93_text_sfx.py <ver> [--sfx]` | generic | `assets/overlays.csv`, `assets/sfx_cues.csv` (see `examples/`) |
-| Rough cut | `60_assemble.py <ver> --mute` → `61_qc.py <file> [master]` | generic | – |
+| Rough cut | `60_assemble.py <ver> --mute` → `61_qc.py <file> [master] [--target MIN MAX]` | generic | – |
 | 🛑 Gate 3 (user checks faces on the rough cut) | | | |
 | Finishing | `70_shot_match.py` → `71_finishing_trims.py` | **trip** | ground regions; trims for measured outliers |
 | Export | `80_export.py <out> [--master work/timeline_text.mov] [--audio work/audio/sfx.wav]` | generic | – |

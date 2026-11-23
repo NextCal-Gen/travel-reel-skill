@@ -68,7 +68,8 @@ def grade_chain(s, row):
 
 
 ENC = ["-c:v", "prores_ks", "-profile:v", "3", "-vendor", "apl0", "-pix_fmt", "yuv422p10le",
-       "-color_range", "tv", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-an"]
+       "-color_range", "tv", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-an",
+       "-map_metadata", "-1"]   # drop source metadata (GPS, device info) so it can't reach any export
 # LUT output carries no colour tags -> state them explicitly (full-range RGB, BT.709) or zscale
 # has "no path between colorspaces".
 TO_YUV = ("setparams=range=pc:color_primaries=bt709:color_trc=bt709:colorspace=gbr,"

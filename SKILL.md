@@ -1,6 +1,6 @@
 ---
 name: travel-reel
-description: Turn raw travel clips (Insta360 360°, iPhone, Samsung, DJI, mixed SDR/HDR/Log) into a professional cinematic 9:16 Instagram Reel with camera-correct color management, conditional shot repair, adaptive aesthetic captions with emoji (optional sound effects), 360 B-roll and researched destination facts, and approval gates. Use whenever the user asks to edit, cut, grade, reframe or export travel footage or a reel from the raw/ folder, even if they don't say "skill" or "reel".
+description: Turn raw travel clips (Insta360 360°, iPhone, Samsung, DJI, mixed SDR/HDR/Log) into a professional cinematic 9:16 Instagram Reel with camera-correct color management, conditional shot repair, adaptive aesthetic captions with emoji (optional sound effects), 360 B-roll and researched destination facts, and approval gates. Also plans several reels from one batch of clips (place reels, day journeys, ride + stop, multi-day series) by grouping clips into visits from time and GPS, with per-reel location show/hide and an autopilot mode. Use whenever the user asks to edit, cut, grade, reframe or export travel footage or a reel from the raw/ folder, even if they don't say "skill" or "reel".
 ---
 
 # Cinematic Travel Reel
@@ -28,7 +28,9 @@ Read the per-trip config, standing defaults, kickoff questions, caption rules an
   Python remap + LUTs) before full-quality renders; re-render only the shots that changed.
 - **Precision.** Keep intermediates at 10-bit or higher (ProRes 422 HQ or FFV1) until the
   final 8-bit delivery encode. Final encodes always come from originals, never from previews.
-- **Gates.** Stop at each 🛑 gate, present results concisely, and wait for approval.
+- **Gates.** Stop at each 🛑 gate, present results concisely, and wait for approval, unless the
+  user chose an autopilot level (see `references/planning.md` P.5): then apply the logged safe
+  default and continue. Questions have no timeout, so everything is asked up front.
 - **Long jobs in the background** (renders > 2 min, full-timeline passes); never poll them.
 
 ---
@@ -68,7 +70,8 @@ is written to the home folder. Check `luts/` for official manufacturer LUTs and 
 
 ## Phase 0.5: Kickoff (ONE batch of questions, before Phase 1)
 
-Ask everything in one AskUserQuestion call (max 4 questions). Apply the **standing defaults** in
+Ask everything in one batch (one AskUserQuestion call holds max 4 questions; use a second call
+right after if needed, never later). Apply the **standing defaults** in
 `CLAUDE.md` without asking (e.g. who's on camera, the look); only ask what they don't cover:
 1. **On-screen text:** none / captions (hook + captions + CTA; ask the CTA wording).
 2. **Extras (multi-select):** route map (with or without labels) / B-roll cutaways from 360 clips /
@@ -76,6 +79,10 @@ Ask everything in one AskUserQuestion call (max 4 questions). Apply the **standi
 3. **Facts not visible in footage:** start city, place names, map links or GPX, distance, the
    user's names for moments. Never invent them; resolve map links to coordinates yourself.
 4. **Who holds the camera / rides:** only if `CLAUDE.md` has no standing default for it.
+5. **Location in the reel:** show / hide + comment CTA (ask the keyword) / tag only. If the batch may hold
+   several places, ask it per reel in the Phase P menu round instead. An unanswered ask = hide; stays are always hide.
+6. **Autopilot:** off / rough-cuts / finals, and for multi-reel projects whether the reel menu is
+   auto. Only if the `CLAUDE.md` config line says ask.
 
 Audio defaults to **none** (no music ever, no ambience, no sound effects). Don't ask about music or
 SFX and don't offer SFX in the kickoff; subtitle SFX are added only when the user specifically asks.
@@ -122,6 +129,15 @@ conversion, confidence (high/med/low), evidence, content, notes.
 summary and go straight on (the user can still interrupt). Any medium/low confidence clip → stop and wait.
 **High confidence** means all three agree: metadata, the measured range (step 2) and the visual
 check (step 3). Any disagreement or missing evidence = medium at best.
+
+## Phase P: Multi-reel planning (right after Gate 1)
+
+Run `07_catalogue.py` (with `--geocode` when clips carry GPS). It writes `assets/scope.json` with
+the detected tier: **single-visit** → continue below as one reel at the project root. Any other
+tier → read `references/planning.md` and follow it: label visits, one menu round (per-reel location
+mode), autopilot, `bootstrap.sh --init-reel` per chosen reel, then Phases 2–12 inside each reel
+folder with one shared look and one batched review. Resolve scope.json warnings (clocks, time
+zones) before grouping is trusted.
 
 ## Phase 2: Input transforms (per camera, technically correct only)
 
@@ -253,6 +269,9 @@ moment: `title` (Futura bold, hook), `clean` (Avenir, captions), `editorial` (Di
 - Check cheaply first: `93_text_sfx.py <ver> --board` → `assets/overlay_board.jpg` (one still per
   overlay), then the full render (`work/timeline_text.mov`, muted preview; `_sfx` preview only with `--sfx`).
 Always also export a clean version.
+- **Location mode** (Phase 0.5 / reel.md): with hide or tag only, no place name in any overlay or
+  map label and no identifying facts; flag readable signage at the storyboard step. With hide, write
+  `assets/location_reply.md` for DM replies (`references/planning.md` P.4).
 
 ## Phase 9: Rough cut
 
@@ -278,7 +297,8 @@ easing, horizons, motion blur where natural. Re-render only affected shots. Save
 
 ## Phase 11: Automated + visual QC
 
-Run and report actual results: duration (≤ 30 s), format and tags, blackdetect, freezedetect,
+Run and report actual results: duration against the reel's target (`61_qc.py --target MIN MAX`;
+never > 30 s), **no GPS / location metadata** (exiftool), format and tags, blackdetect, freezedetect,
 flash frames, out-of-range pixel percentages, VMAF/SSIM vs the 10-bit master, full decode without
 errors, loudness only if audio exists, 1 fps contact sheet review. About 0.03–0.06% of pixels below video
 black after x264 is codec ringing; raising the floor barely helps, so report it, don't chase it.
@@ -297,6 +317,9 @@ black after x264 is codec ringing; raising the floor barely helps, so report it,
 - `outputs/travel_reel.otio`: V1 graded shots (copied to `outputs/resolve_media/`), V2 (disabled)
   originals with in/out and keyframes in metadata (gap under generated graphics), captions as markers.
 Keep the previous final under a descriptive name when replacing it. Validate everything with ffprobe + a full decode.
+Source metadata is dropped at every render (`-map_metadata -1` in `30_render_shot.py` and
+`80_export.py`): without it ffmpeg copies the source's GPS location into the shots, the master
+and the posted MP4.
 
 ## Phase 13: Final report
 
@@ -331,3 +354,6 @@ extras, QC results (only checks that actually ran), source limitations, caption 
     sideways (face mid-frame) or on a bike mount (gloves at ±90°): exclude the holder's measured direction.
 12. **Emoji in Pillow:** Apple Color Emoji is a bitmap font; render at its 160 px strike with
     `embedded_color=True`, then scale. Some Apple emoji carry branded art (🛣️ "CUPERTINO"): view them.
+13. **ffmpeg copies global metadata from the first input by default**, including a phone clip's
+    `location` (ISO 6709 GPS) tag, through every re-encode and `-c copy` concat. Use
+    `-map_metadata -1` on every output that can reach a deliverable, and check with exiftool.

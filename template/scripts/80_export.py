@@ -25,5 +25,6 @@ subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", master, *a_in, "-map", "0:v
                 "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-maxrate", "25M", "-bufsize", "50M",
                 "-profile:v", "high", "-pix_fmt", "yuv420p", "-r", "30", "-fps_mode", "cfr",
                 "-color_range", "tv", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
-                *a_out, "-movflags", "+faststart", out], check=True)
+                *a_out, "-map_metadata", "-1", "-map_chapters", "-1",   # no GPS / device metadata in what gets posted
+                "-movflags", "+faststart", out], check=True)
 print(out)

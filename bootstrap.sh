@@ -4,6 +4,7 @@
 #   bootstrap.sh --check                 verify system tools + shared toolkit (exit 0 = ready)
 #   bootstrap.sh --create [--with-df]    build whatever is missing in the toolkit (downloads from
 #                                        PyPI / official GitHub releases / opencv_zoo; tell the user first)
+#   bootstrap.sh --init-reel <proj> <id> create reels/<id>/ sharing the project's raw/, metadata, inventory, proxies
 #   bootstrap.sh --init-project <dir>    create trip folder layout + scripts/env.sh + CLAUDE.md template
 #                                        (+ personal standing defaults from ~/.claude/travel-reel.defaults.md)
 #
@@ -136,7 +137,7 @@ EOF
   #                                  (e.g. "- Gate 1 auto-continue: yes", "- Opener: ...")
   #   everything else: replaces the block between the standing-defaults markers
   DEF="${TRAVEL_REEL_DEFAULTS:-$HOME/.claude/travel-reel.defaults.md}"
-  if [ ! -f "$P/CLAUDE.md" ]; then
+  if [ -z "${SKIP_CLAUDE_MD:-}" ] && [ ! -f "$P/CLAUDE.md" ]; then
     if [ -f "$DEF" ]; then
       awk -v def="$DEF" '
         BEGIN { sec = "body"
@@ -164,12 +165,33 @@ EOF
   mkdir -p "$P/assets/looks"
   for f in "$SKILL_DIR"/template/looks/*; do [ -e "$P/assets/looks/$(basename "$f")" ] || cp "$f" "$P/assets/looks/"; done
   echo "standing look in assets/looks/ (look2_warm_cinematic.cube + base camera matches)"
+  # unattended-run permission allowlist + editable visit types (multi-reel planning) - never overwrite
+  [ -n "${SKIP_CLAUDE_MD:-}" ] || mkdir -p "$P/.claude"
+  [ -n "${SKIP_CLAUDE_MD:-}" ] || [ -e "$P/.claude/settings.json" ] || { cp "$SKILL_DIR/template/settings.json" "$P/.claude/settings.json" && echo "wrote $P/.claude/settings.json (permission allowlist)"; }
+  [ -e "$P/assets/visit_types.json" ] || cp "$SKILL_DIR/visit_types.json" "$P/assets/visit_types.json"
   echo "project ready: $P"
+}
+
+init_reel() {
+  # reels/<id>/ = a normal project that shares the parent's raw clips, metadata, inventory and proxies
+  local PROJ REEL
+  PROJ="$(cd "$1" && pwd)"; REEL="$PROJ/reels/$2"
+  [ -d "$PROJ/raw" ] || { echo "no raw/ in $PROJ"; exit 2; }
+  mkdir -p "$PROJ/assets/metadata" "$PROJ/work/proxies"
+  SKIP_CLAUDE_MD=1 init_project "$REEL" >/dev/null       # init_project sets the global P
+  rmdir "$REEL/raw" 2>/dev/null; [ -e "$REEL/raw" ] || ln -s ../../raw "$REEL/raw"
+  mkdir -p "$REEL/work"
+  [ -e "$REEL/assets/metadata" ] || ln -s ../../../assets/metadata "$REEL/assets/metadata"
+  [ -e "$REEL/assets/source_inventory.csv" ] || ln -s ../../../assets/source_inventory.csv "$REEL/assets/source_inventory.csv"
+  [ -e "$REEL/work/proxies" ] || ln -s ../../../work/proxies "$REEL/work/proxies"
+  [ -e "$REEL/reel.md" ] || printf '# Reel %s\n- Visits/clips:\n- Target duration:\n- Location mode: hide\n- On-screen text:\n- Extras:\n- Opener:\n' "$2" > "$REEL/reel.md"
+  echo "reel ready: $REEL (shares raw/, metadata, inventory and proxies with $PROJ)"
 }
 
 case "${1:-}" in
   --check) check_system; check_toolkit; echo "---- $ok pass, $fail missing"; [ "$fail" = 0 ] ;;
   --create) [ "${2:-}" = "--with-df" ] && WITH_DF=1; create; check_toolkit ;;
   --init-project) [ -n "${2:-}" ] || { echo "usage: --init-project <dir>"; exit 2; }; init_project "$2" ;;
-  *) sed -n '2,12p' "$0"; exit 2 ;;
+  --init-reel) [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: --init-reel <project> <reel_id>"; exit 2; }; init_reel "$2" "$3" ;;
+  *) sed -n '2,13p' "$0"; exit 2 ;;
 esac
