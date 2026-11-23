@@ -9,7 +9,7 @@ in Claude Code from a trip folder.
 | `SKILL.md` | The workflow Claude follows (phases, gates, defaults, verified pitfalls) |
 | `bootstrap.sh` | Checks/creates the shared toolkit; sets up new trip folders |
 | `CLAUDE.template.md` | Per-trip `CLAUDE.md` (kickoff questions, caption rules, hard rules); public and generic |
-| `~/.claude/travel-reel.defaults.md` | **Your** standing defaults (who holds the camera, look, opener...). Not in this repo; merged into each new trip's `CLAUDE.md` by `--init-project` (a `## Config overrides` section sets config lines such as `- Gate 1 auto-continue: yes`; the rest becomes the standing defaults). Copy it to a new Mac yourself. |
+| `defaults/owner.defaults.md` | The repo owner's standing defaults (who holds the camera, look, opener, Gate 1). `--use-defaults owner` copies it to `~/.claude/travel-reel.defaults.md`, which `--init-project` merges into each new trip's `CLAUDE.md` (a `## Config overrides` section sets config lines such as `- Gate 1 auto-continue: yes`). Other users: skip it, or add `defaults/<you>.defaults.md`. |
 | `template/scripts/` | The tested pipeline (see `template/README.md` for run order + what to edit per trip) |
 | `template/looks/` | Standing look (Look 2 "warm cinematic") + Insta360/Samsung camera-match LUTs |
 | `requirements-*.lock` | Exact Python package versions for the shared toolkit |
@@ -19,23 +19,18 @@ in Claude Code from a trip folder.
 
 ## Setup on a new Mac (Apple silicon)
 
-1. Install Claude Code and sign in; install [Homebrew](https://brew.sh).
-2. Clone this repo into the skills folder:
+1. Install Claude Code and sign in; install [Homebrew](https://brew.sh) (it asks for your password).
+2. Clone this repo into the skills folder (public, no login needed):
    ```bash
-   gh repo clone NextCal-Gen/travel-reel-skill ~/.claude/skills/travel-reel
+   git clone https://github.com/NextCal-Gen/travel-reel-skill.git ~/.claude/skills/travel-reel
    ```
-3. System tools (about 30–40 min; the FFmpeg build with zimg/libplacebo/libvmaf is the long part):
-   ```bash
-   brew install media-info exiftool python@3.12 molten-vk
-   brew tap homebrew-ffmpeg/ffmpeg && brew trust --formula homebrew-ffmpeg/ffmpeg/ffmpeg
-   brew install homebrew-ffmpeg/ffmpeg/ffmpeg --with-zimg --with-libplacebo --with-libvmaf
-   ```
-4. Shared toolkit (`~/travel-reel-toolkit`, about 2 GB: Python venv, RIFE, models), then verify:
-   ```bash
-   ~/.claude/skills/travel-reel/bootstrap.sh --create
-   ~/.claude/skills/travel-reel/bootstrap.sh --check
-   ```
-   Shortcut: run `/travel-reel` in an empty trip folder; Phase 0 checks everything and asks before installing.
+3. Make a trip folder, put your clips in it, open Claude Code there and run `/travel-reel`.
+   Phase 0 does the rest after one yes from you: system tools (`bootstrap.sh --install-system`,
+   about 30–40 min, mostly the ffmpeg build), the shared toolkit in `~/travel-reel-toolkit`
+   (`--create`, about 2 GB), your personal defaults (`--use-defaults owner`), the trip folder
+   (`--init-project .`) and moving loose clips into `raw/`.
+
+Manual equivalent: `bootstrap.sh --install-system`, `--create`, `--use-defaults owner`, `--check`.
 
 ## New trip
 

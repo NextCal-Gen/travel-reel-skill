@@ -41,15 +41,28 @@ All trips share ONE toolchain at `~/travel-reel-toolkit` (override with `$TRAVEL
 Python venv, optional DeepFilterNet venv, RIFE, face/person models, tool caches. Nothing is
 installed per project. Run, in order:
 
+Do these steps yourself: the user should only have to clone this repo and run `/travel-reel` in a trip folder.
+
 1. `~/.claude/skills/travel-reel/bootstrap.sh --check`. Exit 0 = ready (about 10 s, includes GPU tests).
-2. **Toolkit missing or incomplete →** tell the user what will be downloaded (PyPI packages from
+2. **System packages missing** (ffmpeg build, mediainfo, exiftool, python@3.12, molten-vk): ask once
+   (what will be installed, about 30–40 min, mostly the ffmpeg build); on yes run
+   `bootstrap.sh --install-system` in the background (it installs only what is missing, then re-run
+   `--check`). **Homebrew itself missing:** it needs the user's password, so give them the official
+   install command from that script's output to run in Terminal, then continue.
+3. **Toolkit missing or incomplete →** tell the user what will be downloaded (PyPI packages from
    `requirements-main.lock`, RIFE 436 MB from its GitHub release, two small models), then run
-   `bootstrap.sh --create` (add `--with-df` only if audio cleanup is wanted). **System packages
-   (Homebrew ffmpeg tap build, molten-vk, mediainfo, exiftool, python@3.12) are never auto-installed:**
-   the check prints the exact command; ask the user before running it.
-3. New trip folder without `scripts/env.sh` → `bootstrap.sh --init-project <dir>` (folder layout,
-   toolkit-pointing `env.sh`, `CLAUDE.md` from `CLAUDE.template.md`; existing files are never overwritten).
-4. Every script runs after `source scripts/env.sh` (it refuses to run if the toolkit is missing).
+   `bootstrap.sh --create` (add `--with-df` only if audio cleanup is wanted). Steps 2 and 3 can be
+   one question.
+4. **No personal defaults** (`~/.claude/travel-reel.defaults.md` missing) and `defaults/` in this repo
+   holds files: ask once whether one is theirs (e.g. `owner`); on yes `bootstrap.sh --use-defaults <name>`,
+   **before** step 5 so the new `CLAUDE.md` gets them. On no, the kickoff asks instead.
+5. **Trip folder not set up** (no `scripts/env.sh`) → `bootstrap.sh --init-project .` (folder layout,
+   toolkit-pointing `env.sh`, `CLAUDE.md` from `CLAUDE.template.md` + personal defaults; existing files
+   are never overwritten). If video files sit loose in the folder and `raw/` is empty, ask once, then
+   move them into `raw/` (a move on the same disk, nothing re-encoded); from then on `raw/` is read-only.
+   Ask for the trip name only if the clips and the user's message don't make it clear. A `CLAUDE.md`
+   created now was not loaded at session start: read it before the kickoff.
+6. Every script runs after `source scripts/env.sh` (it refuses to run if the toolkit is missing).
 
 Also check **free disk space** (a 25 s reel needs about 5 GB of work space: proxies, shots,
 timelines, masters) and warn early if it's short. Reference table of what the toolkit covers:

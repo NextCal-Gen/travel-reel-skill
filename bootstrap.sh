@@ -2,6 +2,9 @@
 # travel-reel toolkit bootstrap: one shared toolchain for every trip folder.
 #
 #   bootstrap.sh --check                 verify system tools + shared toolkit (exit 0 = ready)
+#   bootstrap.sh --install-system        install the missing Homebrew packages (ffmpeg tap build, mediainfo,
+#                                        exiftool, python@3.12, molten-vk); ~30-40 min. Ask the user first.
+#   bootstrap.sh --use-defaults <name>   copy defaults/<name>.defaults.md to ~/.claude/travel-reel.defaults.md
 #   bootstrap.sh --create [--with-df]    build whatever is missing in the toolkit (downloads from
 #                                        PyPI / official GitHub releases / opencv_zoo; tell the user first)
 #   bootstrap.sh --init-reel <proj> <id> create reels/<id>/ sharing the project's raw/, metadata, inventory, proxies
@@ -9,8 +12,8 @@
 #                                        (+ personal standing defaults from ~/.claude/travel-reel.defaults.md)
 #
 # Toolkit location: $TRAVEL_REEL_TOOLKIT (default ~/travel-reel-toolkit).
-# System packages (Homebrew) are NEVER installed by this script: missing ones are reported with the
-# exact command, because they change the system (ask the user).
+# System packages (Homebrew) are installed only by --install-system, which the skill runs after the user
+# says yes once. Homebrew itself needs the user's password and is never installed here.
 set -u
 TK="${TRAVEL_REEL_TOOLKIT:-$HOME/travel-reel-toolkit}"
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -188,10 +191,46 @@ init_reel() {
   echo "reel ready: $REEL (shares raw/, metadata, inventory and proxies with $PROJ)"
 }
 
+install_system() {
+  # Installs only what is missing. Homebrew itself needs the user's password: never installed here.
+  BREW=$(command -v brew || echo /opt/homebrew/bin/brew)
+  [ -x "$BREW" ] || { echo "Homebrew is not installed. The user must run this in Terminal (asks for their password):"
+                      echo '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'; exit 1; }
+  local pk=()
+  command -v mediainfo >/dev/null || pk+=(media-info)
+  command -v exiftool >/dev/null || pk+=(exiftool)
+  [ -x "$PY312" ] || pk+=(python@3.12)
+  "$BREW" list --formula molten-vk >/dev/null 2>&1 || pk+=(molten-vk)
+  if [ ${#pk[@]} -gt 0 ]; then echo "brew install ${pk[*]}"; "$BREW" install "${pk[@]}" || exit 1; fi
+  local need_ff=0
+  if command -v ffmpeg >/dev/null; then
+    F=$(ffmpeg -hide_banner -filters 2>/dev/null)
+    for f in zscale libplacebo libvmaf v360 lut3d; do echo "$F" | grep -qE "^ [.A-Z|]+ $f " || need_ff=1; done
+  else need_ff=1; fi
+  if [ $need_ff = 1 ]; then
+    echo "Building ffmpeg from the homebrew-ffmpeg tap with zimg, libplacebo, libvmaf (the long part)"
+    "$BREW" tap homebrew-ffmpeg/ffmpeg && "$BREW" trust --formula homebrew-ffmpeg/ffmpeg/ffmpeg || exit 1
+    "$BREW" list --formula ffmpeg >/dev/null 2>&1 && ! "$BREW" list --formula homebrew-ffmpeg/ffmpeg/ffmpeg >/dev/null 2>&1 \
+      && "$BREW" uninstall --ignore-dependencies ffmpeg
+    "$BREW" install homebrew-ffmpeg/ffmpeg/ffmpeg --with-zimg --with-libplacebo --with-libvmaf || exit 1
+  fi
+  [ ${#pk[@]} -eq 0 ] && [ $need_ff = 0 ] && echo "system packages: nothing missing"
+  echo "install-system done"
+}
+
+use_defaults() {
+  local SRC="$SKILL_DIR/defaults/$1.defaults.md" DST="${TRAVEL_REEL_DEFAULTS:-$HOME/.claude/travel-reel.defaults.md}"
+  [ -f "$SRC" ] || { echo "no $SRC (available: $(ls "$SKILL_DIR/defaults" 2>/dev/null | sed 's/.defaults.md//' | tr '\n' ' '))"; exit 2; }
+  if [ -f "$DST" ] && ! cmp -s "$SRC" "$DST"; then cp "$DST" "$DST.bak" && echo "kept the previous file as $DST.bak"; fi
+  mkdir -p "$(dirname "$DST")" && cp "$SRC" "$DST" && echo "personal defaults: $DST (from defaults/$1)"
+}
+
 case "${1:-}" in
   --check) check_system; check_toolkit; echo "---- $ok pass, $fail missing"; [ "$fail" = 0 ] ;;
   --create) [ "${2:-}" = "--with-df" ] && WITH_DF=1; create; check_toolkit ;;
+  --install-system) install_system ;;
+  --use-defaults) [ -n "${2:-}" ] || { echo "usage: --use-defaults <name>"; exit 2; }; use_defaults "$2" ;;
   --init-project) [ -n "${2:-}" ] || { echo "usage: --init-project <dir>"; exit 2; }; init_project "$2" ;;
   --init-reel) [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: --init-reel <project> <reel_id>"; exit 2; }; init_reel "$2" "$3" ;;
-  *) sed -n '2,13p' "$0"; exit 2 ;;
+  *) sed -n '2,16p' "$0"; exit 2 ;;
 esac
