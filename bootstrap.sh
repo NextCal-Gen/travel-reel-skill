@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# travel-reel toolkit bootstrap: one shared toolchain for every trip folder.
+#
+#   bootstrap.sh --check                 verify system tools + shared toolkit (exit 0 = ready)
+#   bootstrap.sh --create [--with-df]    build whatever is missing in the toolkit (downloads from
+#                                        PyPI / official GitHub releases / opencv_zoo; tell the user first)
+#   bootstrap.sh --init-project <dir>    create trip folder layout + scripts/env.sh + CLAUDE.md template
+#
+# Toolkit location: $TRAVEL_REEL_TOOLKIT (default ~/travel-reel-toolkit).
+# System packages (Homebrew) are NEVER installed by this script: missing ones are reported with the
+# exact command, because they change the system (ask the user).
+set -u
+TK="${TRAVEL_REEL_TOOLKIT:-$HOME/travel-reel-toolkit}"
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY312="/opt/homebrew/opt/python@3.12/bin/python3.12"
+RIFE_URL="https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-macos.zip"
+YUNET_URL="https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+YUNET_SHA="8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
+YOLO_URL="https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt"
+YOLO_SIZE=5613764
+export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
+# keep tool caches/settings inside the toolkit (the import tests would otherwise write to ~/.matplotlib etc.)
+export MPLCONFIGDIR="$TK/cache/matplotlib" YOLO_CONFIG_DIR="$TK/cache/ultralytics" TORCH_HOME="$TK/cache/torch" HF_HOME="$TK/cache/huggingface"
+
+ok=0; fail=0
+pass() { printf "  PASS  %s\n" "$1"; ok=$((ok+1)); }
+miss() { printf "  MISS  %s\n        -> %s\n" "$1" "$2"; fail=$((fail+1)); }
+
+check_system() {
+  echo "System tools"
+  if command -v ffmpeg >/dev/null; then
+    F=$(ffmpeg -hide_banner -filters 2>/dev/null)
+    for f in zscale libplacebo libvmaf v360 lut3d; do
+      echo "$F" | grep -qE "^ [.A-Z|]+ $f " && pass "ffmpeg filter $f" \
+        || miss "ffmpeg filter $f" "brew tap homebrew-ffmpeg/ffmpeg && brew trust --formula homebrew-ffmpeg/ffmpeg/ffmpeg && brew uninstall ffmpeg && brew install homebrew-ffmpeg/ffmpeg/ffmpeg --with-zimg --with-libplacebo --with-libvmaf"
+    done
+    ffmpeg -v error -init_hw_device vulkan -f lavfi -i testsrc2=d=0.1 -vf format=yuv420p,hwupload,libplacebo,hwdownload,format=yuv420p -f null - 2>/dev/null \
+      && pass "libplacebo on GPU (Vulkan/MoltenVK)" || miss "libplacebo on GPU" "brew install molten-vk  (and DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib, set by env.sh)"
+  else miss "ffmpeg" "see filter line above (homebrew-ffmpeg tap build)"; fi
+  command -v ffprobe >/dev/null && pass "ffprobe" || miss "ffprobe" "comes with ffmpeg"
+  command -v mediainfo >/dev/null && pass "mediainfo $(mediainfo --Version 2>/dev/null | tail -1 | sed 's/.*- //')" || miss "mediainfo" "brew install media-info"
+  command -v exiftool >/dev/null && pass "exiftool $(exiftool -ver)" || miss "exiftool" "brew install exiftool"
+  [ -x "$PY312" ] && pass "python 3.12 ($("$PY312" --version 2>&1))" || miss "python 3.12" "brew install python@3.12"
+  [ -f /System/Library/Fonts/Avenir\ Next.ttc ] && pass "Avenir Next font (text/map labels)" || miss "Avenir Next font" "macOS system font; use another installed font"
+}
+
+check_toolkit() {
+  echo "Shared toolkit: $TK"
+  [ -d "$TK" ] || { miss "toolkit folder" "bootstrap.sh --create"; return; }
+  if [ -x "$TK/venv/bin/python" ] && "$TK/venv/bin/python" -c "import numpy, cv2, colour, PyOpenColorIO, librosa, scenedetect, opentimelineio, PIL, ultralytics, scipy" 2>/dev/null; then
+    pass "main venv imports ($("$TK/venv/bin/python" --version 2>&1))"
+    "$TK/venv/bin/python" -c "import torch,sys; sys.exit(0 if torch.backends.mps.is_available() else 1)" 2>/dev/null && pass "torch MPS (GPU)" || miss "torch MPS" "optional; CPU fallback"
+  else miss "main venv" "bootstrap.sh --create"; fi
+  if [ -x "$TK/venv-df/bin/python" ]; then
+    "$TK/venv-df/bin/python" -c "import df" 2>/dev/null && pass "DeepFilterNet venv (optional, audio only)" || miss "DeepFilterNet venv" "bootstrap.sh --create --with-df (optional)"
+  else printf "  SKIP  DeepFilterNet venv (optional; default reels have no audio)\n"; fi
+  if [ -x "$TK/rife/rife-ncnn-vulkan" ] && [ -d "$TK/rife/rife-v4.6" ]; then
+    d=$(mktemp -d); ffmpeg -v error -f lavfi -i testsrc2=s=320x180:d=1 -vf "select=eq(n\,0)+eq(n\,10)" -fps_mode passthrough "$d/f%d.png" 2>/dev/null
+    (cd "$TK/rife" && ./rife-ncnn-vulkan -0 "$d/f1.png" -1 "$d/f2.png" -o "$d/mid.png" -m rife-v4.6 >/dev/null 2>&1) && [ -f "$d/mid.png" ] \
+      && pass "RIFE interpolation on GPU" || miss "RIFE run" "bootstrap.sh --create (re-download)"; rm -rf "$d"
+  else miss "RIFE" "bootstrap.sh --create"; fi
+  if [ -f "$TK/models/face_detection_yunet_2023mar.onnx" ] && [ "$(shasum -a 256 "$TK/models/face_detection_yunet_2023mar.onnx" | cut -d' ' -f1)" = "$YUNET_SHA" ]; then pass "YuNet face model (sha256 ok; optional)"; else miss "YuNet face model (optional)" "bootstrap.sh --create"; fi
+  if [ -f "$TK/models/yolo11n.pt" ] && [ "$(stat -f %z "$TK/models/yolo11n.pt")" = "$YOLO_SIZE" ]; then pass "YOLO11n person model (optional)"; else miss "YOLO11n person model (optional)" "bootstrap.sh --create"; fi
+}
+
+create() {
+  mkdir -p "$TK/models" "$TK/cache/matplotlib" "$TK/cache/ultralytics" "$TK/cache/torch" "$TK/cache/huggingface"
+  [ -x "$PY312" ] || { echo "python 3.12 missing: brew install python@3.12 (ask the user), then re-run"; exit 1; }
+  if ! [ -x "$TK/venv/bin/python" ]; then
+    echo "Creating main venv from requirements-main.lock"
+    "$PY312" -m venv "$TK/venv" && "$TK/venv/bin/python" -m pip install -q --upgrade pip
+    LOCK="$TK/requirements-main.lock"; [ -f "$LOCK" ] || LOCK="$SKILL_DIR/requirements-main.lock"
+    "$TK/venv/bin/python" -m pip install -q -r "$LOCK" || { echo "pip install failed"; exit 1; }
+  fi
+  if [ "${WITH_DF:-0}" = 1 ] && ! [ -x "$TK/venv-df/bin/python" ]; then
+    echo "Creating DeepFilterNet venv (needs Rust: brew install rust)"
+    "$PY312" -m venv "$TK/venv-df" && "$TK/venv-df/bin/python" -m pip install -q --upgrade pip
+    LOCK="$TK/requirements-df.lock"; [ -f "$LOCK" ] || LOCK="$SKILL_DIR/requirements-df.lock"
+    "$TK/venv-df/bin/python" -m pip install -q -r "$LOCK"
+  fi
+  if ! [ -x "$TK/rife/rife-ncnn-vulkan" ]; then
+    echo "Downloading RIFE (436 MB, official GitHub release)"
+    d=$(mktemp -d); curl -sL -o "$d/rife.zip" "$RIFE_URL" && unzip -q "$d/rife.zip" -d "$d/x" \
+      && mv "$d/x/rife-ncnn-vulkan-20221029-macos" "$TK/rife" && chmod +x "$TK/rife/rife-ncnn-vulkan"; rm -rf "$d"
+  fi
+  if ! [ -f "$TK/models/face_detection_yunet_2023mar.onnx" ]; then
+    curl -sL -o "$TK/models/face_detection_yunet_2023mar.onnx" "$YUNET_URL"
+    [ "$(shasum -a 256 "$TK/models/face_detection_yunet_2023mar.onnx" | cut -d' ' -f1)" = "$YUNET_SHA" ] || { echo "YuNet sha256 mismatch: removed"; rm -f "$TK/models/face_detection_yunet_2023mar.onnx"; }
+  fi
+  [ -f "$TK/models/yolo11n.pt" ] || curl -sL -o "$TK/models/yolo11n.pt" "$YOLO_URL"
+  echo "create done"
+}
+
+init_project() {
+  P="$1"; mkdir -p "$P"/{raw,references/look,luts,assets/map,scripts,work,previews/finishing_comparison,outputs}
+  if ! [ -f "$P/scripts/env.sh" ]; then
+    cat > "$P/scripts/env.sh" <<'EOF'
+# Source before running any processing script:  source scripts/env.sh
+# Uses the SHARED travel-reel toolkit (venv, RIFE, models, caches); nothing is installed per project.
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")/.." && pwd)"; export PROJECT_ROOT
+export TRAVEL_REEL_TOOLKIT="${TRAVEL_REEL_TOOLKIT:-$HOME/travel-reel-toolkit}"
+TK="$TRAVEL_REEL_TOOLKIT"
+if [ ! -x "$TK/venv/bin/python" ]; then
+  echo "travel-reel toolkit not found at $TK -> run: ~/.claude/skills/travel-reel/bootstrap.sh --check / --create" >&2
+  return 1 2>/dev/null || exit 1
+fi
+# libplacebo / RIFE load libvulkan at runtime; macOS doesn't search /opt/homebrew/lib by default.
+export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
+export TOOL_CACHE="$TK/cache"
+export MPLCONFIGDIR="$TOOL_CACHE/matplotlib" YOLO_CONFIG_DIR="$TOOL_CACHE/ultralytics"
+export TORCH_HOME="$TOOL_CACHE/torch" HF_HOME="$TOOL_CACHE/huggingface" CARGO_HOME="$TOOL_CACHE/cargo"
+export TRAVEL_REEL_MODELS="$TK/models"
+export RIFE_BIN="$TK/rife/rife-ncnn-vulkan" RIFE_MODEL_DIR="$TK/rife"
+export DF_PY="$TK/venv-df/bin/python" DF_MODEL_DIR="$TK/deepfilternet/DeepFilterNet3"
+source "$TK/venv/bin/activate"
+EOF
+    echo "wrote $P/scripts/env.sh"
+  fi
+  [ -f "$P/CLAUDE.md" ] || { cp "$SKILL_DIR/CLAUDE.template.md" "$P/CLAUDE.md" && echo "wrote $P/CLAUDE.md (fill in the trip name)"; }
+  # pipeline template (tested scripts) - only into a scripts/ folder that has no scripts yet
+  if ! ls "$P"/scripts/*.py >/dev/null 2>&1; then
+    cp "$SKILL_DIR"/template/scripts/* "$P/scripts/" && cp "$SKILL_DIR/template/README.md" "$P/scripts/README.md" \
+      && echo "copied pipeline template ($(ls "$SKILL_DIR"/template/scripts | wc -l | tr -d ' ') scripts) + scripts/README.md"
+  else echo "scripts/ already has scripts: template not copied"; fi
+  # standing look + camera-match LUTs - never overwrite
+  mkdir -p "$P/assets/looks"
+  for f in "$SKILL_DIR"/template/looks/*; do [ -e "$P/assets/looks/$(basename "$f")" ] || cp "$f" "$P/assets/looks/"; done
+  echo "standing look in assets/looks/ (look2_warm_cinematic.cube + base camera matches)"
+  echo "project ready: $P"
+}
+
+case "${1:-}" in
+  --check) check_system; check_toolkit; echo "---- $ok pass, $fail missing"; [ "$fail" = 0 ] ;;
+  --create) [ "${2:-}" = "--with-df" ] && WITH_DF=1; create; check_toolkit ;;
+  --init-project) [ -n "${2:-}" ] || { echo "usage: --init-project <dir>"; exit 2; }; init_project "$2" ;;
+  *) sed -n '2,12p' "$0"; exit 2 ;;
+esac
