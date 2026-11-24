@@ -39,6 +39,7 @@ this trip's footage; keep the code around it.
 | On-screen text (optional; SFX opt-in with `--sfx`) | `93_text_sfx.py <ver> --board`, then `93_text_sfx.py <ver> [--sfx] [--out FILE]` (tests: `--out work/test_text.mov`) | generic | `assets/overlays.csv` (optional `zone` column, e.g. `0.62\|0.70`, when the default zones land on busy areas), `assets/sfx_cues.csv` (see `examples/`) |
 | Motion graphics (optional) | `70_motion.py list` / `map` / `render <template> --name ID --set k=v` → `composite --preview <ver>` | generic | `assets/motion_plan.json` |
 | Rough cut | `60_assemble.py <ver> --mute` → `61_qc.py <file> [master] [--target MIN MAX]` → `62_cut_check.py <file>` | generic | – |
+| Caption reuse across reels (multi-reel, project root) | `64_reuse_check.py [--strict]` → `assets/reuse_check.json` (same clip in two reels/shots + repeated emoji, phrase or wording) | generic | – |
 | Review page | `63_review_page.py [--all]` → `previews/review.html` (phone frame, safe zone, timeline, notes → instructions) | generic | – |
 | 🛑 Gate 3 (user checks faces on the rough cut) | | | |
 | Finishing | `70_shot_match.py` → `71_finishing_trims.py` | **trip** | ground regions; trims for measured outliers |

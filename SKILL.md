@@ -254,7 +254,9 @@ rough cut instead. Otherwise:
   visual hook 30% (would it stop a scroll in the first second?), stands alone 20% (reads without
   context), motion / energy 20%, scenery or detail value 20%, payoff / ending potential 10%. Score each
   candidate 0–10 per dimension from the frames you viewed, one line of reason each. For multi-reel
-  projects a hero shot may appear in a place reel and a journey reel, never twice in one reel.
+  projects a hero shot may appear in a place reel and a journey reel, never twice in one reel, and
+  a clip reused across reels gets **different caption text** in each (different angle, no shared phrase
+  or emoji; `64_reuse_check.py` flags repeats).
 - **Then run Phase 3 diagnostics on the EDL clips** (`11_diagnostics.py --edl`), build only the
   triggered repairs, and render.
 
@@ -373,6 +375,8 @@ cut, black or stray frames and missed cuts show up here, not on a 1 fps sheet.
 
 🛑 **Gate 3:** report composition, color, motion, timing, sharpness, transitions, processing
 errors, cut-check flags, the holder-check timestamps (or "none found"), and what changed since the last version.
+Multi-reel: run `64_reuse_check.py` from the project root first and rewrite any flagged caption (same clip
+in two reels with a repeated emoji, phrase or wording) before showing the cuts.
 Build the **review page** (`63_review_page.py`, or `--all` for every reel of a multi-reel project):
 one local HTML file with each cut in a phone frame, the safe zone, a timeline of shots, captions and
 graphics, and a note box per item; the user copies their notes back as one instruction. Offer a phone

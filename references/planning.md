@@ -53,6 +53,11 @@ duration, opener idea, location mode default, and a one-line reason. The user pi
   Offer, don't make by default.
 - **Clip reuse**: a hero shot may appear in a place reel and in a journey/series reel, never twice
   in one reel. Don't propose a reel that would mostly repeat another.
+- **Reused clip, new caption**: the same clip in two reels must not carry the same caption idea. Write
+  each reel's text over it from a different angle (the place in one, a fact, the journey or the day in
+  the other); a reworded copy is still a repeat (Jpn trip: "Same line, after dark 🌙" and "And it glows
+  after dark 🌙" closed both reels on the same night clip). Vary the in/out or framing too where the
+  footage allows. Check with `64_reuse_check.py` from the project root before the batch review.
 - **Weak visits** (few usable seconds, soft or shaky footage) are folded into a journey reel, not
   given their own reel. Say which and why.
 - **Standing menu defaults** per tier in the personal defaults file (e.g. "ride-and-stop: combined
@@ -111,6 +116,8 @@ text, extras, opener) and run Phases 3–12 inside that folder. One look for the
 One board for all rough cuts (`assets/review_board.jpg`: per reel, a strip of first/mid/last frames
 of each shot, plus duration and location mode) and one message listing every reel's QC result,
 holder-check timestamps and autopilot decisions. The user approves or comments per reel in one reply.
+Run `64_reuse_check.py` first (project root): every flagged pair (same clip, repeated emoji, phrase or
+wording across reels) is rewritten before the board, not left for the user to spot.
 
 ## P.8 Cross-day reels (multi-day, after the last day)
 
