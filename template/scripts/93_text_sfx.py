@@ -16,7 +16,10 @@ Placement and colours are chosen per overlay by lib_text.choose() from 3 frames 
 (calm zone in the safe area, colours from the pixels behind the text, worst-frame contrast >= 4.5:1,
 3:1 for large text; feathered scrim only if nothing passes). Report: assets/overlay_report.csv.
 
-Usage: 93_text_sfx.py <ver> [--src work/timeline_prores.mov] [--board] [--sfx]
+Usage: 93_text_sfx.py <ver> [--src work/timeline_prores.mov] [--out work/timeline_text.mov] [--board] [--sfx]
+  --out     where the captioned 10-bit timeline goes (default work/timeline_text.mov, which the export and
+            70_motion pick up). Tests and experiments: write elsewhere (e.g. work/test_text.mov) so the
+            working copy of an approved cut is never overwritten.
   --board   cheap check: one still per overlay -> assets/overlay_board.jpg (no full render)
 Outputs: work/timeline_text.mov (ProRes 422 HQ 10-bit), previews/rough_cut_v<ver>.mp4 (muted);
          with --sfx also work/audio/sfx.wav and previews/rough_cut_v<ver>_sfx.mp4
@@ -28,7 +31,8 @@ from lib_reel import ROOT, to_rgb
 import lib_text as T
 
 W, H, FPS, SR = T.W, T.H, 30, 48000
-args = [a for a in sys.argv[1:] if not a.startswith("--")]
+_opt = {"--src", "--out"}                                         # options that take a value
+args = [a for i, a in enumerate(sys.argv[1:], 1) if not a.startswith("--") and sys.argv[i - 1] not in _opt]
 ver = args[0] if args else "1"
 src = sys.argv[sys.argv.index("--src") + 1] if "--src" in sys.argv else os.path.join(ROOT, "work", "timeline_prores.mov")
 ov = [r for r in csv.DictReader(open(os.path.join(ROOT, "assets", "overlays.csv"), encoding="utf-8"))]
@@ -73,7 +77,9 @@ if "--board" in sys.argv:
     print("assets/overlay_board.jpg"); sys.exit()
 
 # ---- full render on the 10-bit timeline (verified decode -> RGB 16-bit -> verified encode) ----
-dst = os.path.join(ROOT, "work", "timeline_text.mov")
+dst = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else os.path.join(ROOT, "work", "timeline_text.mov")
+dst = dst if os.path.isabs(dst) else os.path.join(ROOT, dst)
+print("captioned timeline ->", os.path.relpath(dst, ROOT))
 dec = subprocess.Popen(["ffmpeg", "-v", "error", "-i", src, "-vf", to_rgb(W, H, "limited"), "-f", "rawvideo", "-pix_fmt", "rgb48le", "-"],
                        stdout=subprocess.PIPE)
 enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb48le", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",

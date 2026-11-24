@@ -74,9 +74,31 @@ check_toolkit() {
   check_motion
 }
 
+node22() {
+  # path of a Node >= 22 binary: PATH first, then nvm installs (newest first), then Homebrew. nvm users often
+  # have an older default node first on PATH, and HyperFrames' launcher uses whatever `node` PATH gives it.
+  local c v
+  for c in "$(command -v node 2>/dev/null)" $(ls -d "$HOME"/.nvm/versions/node/v*/bin/node 2>/dev/null | sort -V -r) \
+           /opt/homebrew/opt/node/bin/node /opt/homebrew/bin/node /usr/local/bin/node; do
+    [ -x "$c" ] || continue
+    v=$("$c" -p 'process.versions.node.split(".")[0]' 2>/dev/null) || continue
+    [ "${v:-0}" -ge 22 ] 2>/dev/null && { echo "$c"; return 0; }
+  done
+  return 1
+}
+CHROME_APP="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+motion_env() {
+  # PATH with Node 22+ first, and an installed Google Chrome as the render browser unless MOTION_BROWSER is set
+  local n; n=$(node22) && export PATH="$(dirname "$n"):$PATH"
+  [ -z "${MOTION_BROWSER:-}" ] && [ -x "$CHROME_APP" ] && export MOTION_BROWSER="$CHROME_APP"
+  return 0
+}
+
 check_motion() {
   local HFB="$TK/motion/node_modules/.bin/hyperframes"
   if ! [ -x "$HFB" ]; then printf "  SKIP  motion graphics (optional; bootstrap.sh --install-system --with-motion, then --create --with-motion)\n"; return; fi
+  motion_env
+  node22 >/dev/null && pass "node $("$(node22)" --version) for motion graphics" || miss "Node 22+ (motion graphics)" "bootstrap.sh --install-system --with-motion"
   local v; v=$("$HFB" --version 2>/dev/null)
   [ "$v" = "$HF_VERSION" ] && pass "hyperframes $v (pinned)" || miss "hyperframes $HF_VERSION (found: ${v:-none})" "bootstrap.sh --create --with-motion"
   [ -f "$TK/motion/node_modules/gsap/dist/gsap.min.js" ] && pass "gsap (vendored into each render)" || miss "gsap" "bootstrap.sh --create --with-motion"
@@ -143,15 +165,16 @@ create() {
 create_motion() {
   # HyperFrames (HTML/GSAP -> video) for motion-graphic overlays. --ignore-scripts skips onnxruntime's
   # postinstall (only used by background removal, which this skill doesn't use).
-  local nmaj; nmaj=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
-  [ "$nmaj" -ge 22 ] 2>/dev/null || { echo "motion: Node 22+ missing -> bootstrap.sh --install-system --with-motion"; return; }
+  motion_env
+  node22 >/dev/null || { echo "motion: Node 22+ missing -> bootstrap.sh --install-system --with-motion"; return; }
   mkdir -p "$TK/motion"
   [ -f "$TK/motion/package.json" ] || printf '{ "name": "travel-reel-motion-toolkit", "private": true }\n' > "$TK/motion/package.json"
   if ! [ -x "$TK/motion/node_modules/.bin/hyperframes" ] || [ "$("$TK/motion/node_modules/.bin/hyperframes" --version 2>/dev/null)" != "$HF_VERSION" ] \
      || ! [ -f "$TK/motion/node_modules/gsap/dist/gsap.min.js" ]; then
     (cd "$TK/motion" && npm install --no-audit --no-fund --ignore-scripts --save-exact "hyperframes@$HF_VERSION" "gsap@$GSAP_VERSION") || { echo "motion: npm install failed"; return; }
   fi
-  if [ -z "${MOTION_BROWSER:-}" ]; then                     # MOTION_BROWSER = use an existing Chrome instead
+  if [ -n "${MOTION_BROWSER:-}" ]; then echo "motion: rendering with $MOTION_BROWSER (no browser download)"
+  else                                                       # no Google Chrome installed: HyperFrames fetches its own
     HYPERFRAMES_NO_TELEMETRY=1 DO_NOT_TRACK=1 "$TK/motion/node_modules/.bin/hyperframes" browser ensure \
       || echo "motion: Chrome for rendering not installed (re-run, or set MOTION_BROWSER to a Chrome binary)"
   fi
@@ -250,9 +273,8 @@ install_system() {
   command -v exiftool >/dev/null || pk+=(exiftool)
   [ -x "$PY312" ] || pk+=(python@3.12)
   "$BREW" list --formula molten-vk >/dev/null 2>&1 || pk+=(molten-vk)
-  if [ "${WITH_MOTION:-0}" = 1 ]; then                       # motion graphics need Node 22+
-    local nmaj; nmaj=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
-    [ "$nmaj" -ge 22 ] 2>/dev/null || pk+=(node)
+  if [ "${WITH_MOTION:-0}" = 1 ]; then                       # motion graphics need Node 22+ (any nvm/brew install counts)
+    node22 >/dev/null || pk+=(node)
   fi
   if [ ${#pk[@]} -gt 0 ]; then echo "brew install ${pk[*]}"; "$BREW" install "${pk[@]}" || exit 1; fi
   local need_ff=0

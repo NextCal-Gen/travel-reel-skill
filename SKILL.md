@@ -67,6 +67,8 @@ Do these steps yourself: the user should only have to clone this repo and run `/
    will be installed (Node 22+ via Homebrew if missing, HyperFrames 0.8.34 + GSAP from npm, a headless
    Chrome for rendering, about 300 MB), then `bootstrap.sh --install-system --with-motion` (only if Node
    is missing) and `bootstrap.sh --create --with-motion`. Motion graphics are optional: nothing else needs them.
+   Node 22+ is found wherever it is (PATH, nvm, Homebrew) even when an older default Node comes first, and
+   an installed Google Chrome is used for rendering (no browser download); `MOTION_BROWSER` overrides it.
 
 Also check **free disk space** (a 25 s reel needs about 5 GB of work space: proxies, shots,
 timelines, masters) and warn early if it's short. Reference table of what the toolkit covers:
@@ -292,6 +294,8 @@ moment: `title` (Futura bold, hook), `clean` (Avenir, captions), `editorial` (Di
   every line ≥ 1.5 s; facts only from the user or strong research.
 - Check cheaply first: `93_text_sfx.py <ver> --board` → `assets/overlay_board.jpg` (one still per
   overlay), then the full render (`work/timeline_text.mov`, muted preview; `_sfx` preview only with `--sfx`).
+  **Tests and experiments use `--out work/test_text.mov`**: the default output is the working copy the
+  export and motion composite build on, and overwriting it for a test loses the approved version.
 Always also export a clean version.
 - **Location mode** (Phase 0.5 / reel.md): with hide or tag only, no place name in any overlay or
   map label and no identifying facts; flag readable signage at the storyboard step. With hide, write
@@ -308,7 +312,11 @@ underline that draws itself, handwritten label), `info_chips`, `comment_cta`, `d
 2. Render each: `70_motion.py render <template> --name <id> --set key=value ... [--vars file.json]
    --bg-time <start>`. It lints, renders, checks alpha, frame count and the safe zone (fails on a
    violation), and writes `assets/motion/<id>_sheet.jpg` over the real timeline frames. **View every
-   sheet**; fix and re-render rather than accepting something that looks off.
+   sheet**; fix and re-render rather than accepting something that looks off. **Auto colours** (with
+   `--bg-time`): templates with a `color` variable you didn't set get their text colour measured against
+   the footage under the graphic; below 4.5:1 it switches to lib_text's pick (e.g. cream → navy on a bright
+   sky, measured 1.49 → 5.83:1 on Kanakapura) and re-renders. On a busy background no colour may pass: the
+   report says so and keeps the original; move the graphic or accept the shadow after viewing the sheet.
 3. `hop_map`: `70_motion.py map --country <name> --stops "Label:lat,lon[:sub];..."` first. Borders come
    from Natural Earth, using the country's own point-of-view file where one is published (India,
    Vietnam and about 30 others), so the map matches what that country considers correct.
@@ -425,3 +433,9 @@ extras, QC results (only checks that actually ran), source limitations, caption 
 17. **Handwriting fonts often lack Vietnamese and other accents** (Caveat had no ồ, ế, ư, ơ). The
     bundled fonts are Be Vietnam Pro, Playfair Display (no ₫, falls back) and Patrick Hand. Check any new
     font against the actual text before using it.
+18. **nvm puts an older default Node first on PATH**, and HyperFrames' launcher runs whatever `node` it
+    finds (Node 20 fails). `bootstrap.sh` and `70_motion.py` locate Node 22+ themselves; never rely on PATH.
+19. **A test run overwrote an approved working file** (`93_text_sfx.py` always wrote `work/timeline_text.mov`).
+    Experiments write to `work/test_*` (`--out`), and `cmp` before overwriting means stopping when it differs.
+20. **Template default colours ignore the footage** (cream on a bright sky measured 1.49:1). Auto colours fix
+    it; a background that is both light and dark under the text has no passing colour at all.

@@ -4,6 +4,7 @@
   {"id":"keyword","type":"string","label":"Keyword to comment","default":"CAFE"},
   {"id":"line2","type":"string","label":"Line below the keyword","default":"Comment it and I will DM you 📩"},
   {"id":"theme","type":"string","label":"light | dark","default":"light"},
+  {"id":"color","type":"string","label":"Text colour for the two lines (empty = theme; 70_motion.py picks one from the footage)","default":""},
   {"id":"position","type":"string","label":"upper | center | lower","default":"center"},
   {"id":"accent","type":"color","label":"Keyword pill colour","default":"#F2C14E"}
 ]'>
@@ -19,7 +20,7 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
 #root{position:relative;width:1080px;height:1920px;overflow:hidden;background:transparent;-webkit-font-smoothing:antialiased}
 #block{position:absolute;left:70px;width:910px;text-align:center;text-shadow:0 3px 16px rgba(0,0,0,.4)}
 #l1,#l2{font-family:'Be Vietnam Pro',sans-serif;font-weight:700;font-size:46px;line-height:1.2;text-wrap:balance}
-#l2{font-weight:600;font-size:38px;margin-top:26px}
+#l2{font-weight:700;font-size:42px;margin-top:26px}
 #pillw{margin-top:26px}
 #pill{display:inline-flex;align-items:center;gap:18px;padding:22px 46px;border-radius:999px;
   font-family:'Be Vietnam Pro',sans-serif;font-weight:800;font-size:92px;letter-spacing:4px;line-height:1;color:#1E1712;
@@ -46,6 +47,14 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
   var v = TR.vars();
   var b = document.getElementById('block');
   b.className = v.theme === 'dark' ? 'dark' : 'light';
+  if (v.color) {                                     /* explicit or auto-picked colour for the two text lines */
+    b.style.color = v.color;
+    var c = v.color.replace('#', ''), lum = (parseInt(c.substr(0, 2), 16) * 299 + parseInt(c.substr(2, 2), 16) * 587 + parseInt(c.substr(4, 2), 16) * 114) / 255000;
+    b.style.textShadow = lum < 0.45 ? '0 0 14px rgba(255,255,255,.55), 0 0 3px rgba(255,255,255,.6)'   /* dark text: soft light halo */
+                                    : '0 3px 16px rgba(0,0,0,.55), 0 1px 3px rgba(0,0,0,.6)';
+  } else if (v.theme !== 'dark') {
+    b.style.textShadow = '0 3px 16px rgba(0,0,0,.55), 0 1px 3px rgba(0,0,0,.6)';                   /* firmer than before (.4) */
+  }
   TR.place(b, v.position || 'center');
   document.getElementById('l1').textContent = v.line1 || '';
   document.getElementById('l2').textContent = v.line2 || '';

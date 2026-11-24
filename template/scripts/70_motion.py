@@ -8,8 +8,12 @@ Run after `source scripts/env.sh`:
       country outline (Natural Earth, the country's own point-of-view borders where published) + stops,
       projected into the hop_map box. The output JSON is a --vars file for hop_map.
   70_motion.py render <template> [--name ID] [--vars file.json] [--set key=value ...] [--bg-time T] [--allow-outside]
+                    [--no-auto-colors]
       lint -> render work/motion/ID.mov -> checks (alpha, frame count, safe zone) -> assets/motion/ID_sheet.jpg
       (frames composited over the timeline at T when --bg-time is given, else over a neutral gradient). VIEW the sheet.
+      Auto colours (with --bg-time, for templates with a `color` variable the user did not set): the text colour's
+      worst-case contrast is measured against the footage under the rendered graphic; below 4.5:1 it is replaced
+      by lib_text's pick from those pixels (+ its accent, shadow off for dark text) and the graphic re-rendered.
   70_motion.py composite [--plan assets/motion_plan.json] [--base FILE] [--out work/timeline_motion.mov] [--preview VER]
       plan = [{"id": "title", "start": 0.4}, ...]; base defaults to work/timeline_text.mov, else timeline_prores.mov.
       --preview VER also writes the muted review preview previews/rough_cut_vVER.mp4 from the result.
@@ -18,7 +22,7 @@ Templates: the skill's template/motion/templates/*.html; a project copy in motio
 Toolkit: $TRAVEL_REEL_TOOLKIT/motion (pinned hyperframes + gsap; bootstrap.sh --create --with-motion).
 Verified pitfalls (see SKILL.md): HyperFrames ProRes is BT.601 limited range and untagged, so it is converted
 to BT.709 before overlaying; templates never measure text (fonts may not be ready), they use fixed boxes."""
-import json, math, os, re, shutil, subprocess, sys
+import glob, json, math, os, re, shutil, subprocess, sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -43,10 +47,35 @@ NE_POV = {"arg", "bdg", "bra", "chn", "deu", "egy", "esp", "fra", "gbr", "grc", 
           "ukr", "usa", "vnm"}
 
 
+CHROME_APP = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+
+def node22():
+    """A Node >= 22 binary: PATH first, then nvm installs (newest first), then Homebrew. nvm users often have an
+    older default node first on PATH, and the hyperframes launcher runs whatever `node` PATH gives it."""
+    def major(p):
+        try:
+            return int(subprocess.run([p, "-p", "process.versions.node.split('.')[0]"], capture_output=True,
+                                      text=True, timeout=10).stdout.strip() or 0)
+        except Exception:
+            return 0
+    nvm = sorted(glob.glob(os.path.expanduser("~/.nvm/versions/node/v*/bin/node")),
+                 key=lambda p: [int(x) for x in re.findall(r"v(\d+)\.(\d+)\.(\d+)", p)[0]], reverse=True)
+    for c in [shutil.which("node")] + nvm + ["/opt/homebrew/opt/node/bin/node", "/opt/homebrew/bin/node", "/usr/local/bin/node"]:
+        if c and os.path.exists(c) and major(c) >= 22:
+            return c
+    return None
+
+
 def hf_env():
     e = dict(os.environ, HYPERFRAMES_NO_TELEMETRY="1", DO_NOT_TRACK="1")
-    if os.environ.get("MOTION_BROWSER"):
-        e["HYPERFRAMES_BROWSER_PATH"] = os.environ["MOTION_BROWSER"]
+    n = node22()
+    if not n:
+        sys.exit("Node 22+ not found (PATH, nvm, Homebrew): ~/.claude/skills/travel-reel/bootstrap.sh --install-system --with-motion")
+    e["PATH"] = os.path.dirname(n) + os.pathsep + e.get("PATH", "")
+    browser = os.environ.get("MOTION_BROWSER") or (CHROME_APP if os.path.exists(CHROME_APP) else "")
+    if browser:                                                  # else HyperFrames uses the Chrome it downloaded
+        e["HYPERFRAMES_BROWSER_PATH"] = browser
     return e
 
 
@@ -255,6 +284,41 @@ def cmd_render():
     for v in decl:                                                               # numbers stay numbers
         if v.get("type") == "number" and v["id"] in vals:
             vals[v["id"]] = float(vals[v["id"]])
+    out = render_once(template, name, vals)
+    bg_t = float(arg("--bg-time")) if arg("--bg-time") else None
+    auto = None
+    if bg_t is not None and "--no-auto-colors" not in sys.argv and "color" in known and "color" not in vals \
+            and "theme" not in vals:                               # a colour or theme the user chose is kept
+        auto = auto_colors(out, decl, vals, dur, bg_t, template)
+        if auto.get("changed"):
+            vals.update(auto["set"]); out = render_once(template, name, vals)
+    # checks
+    pr = json.loads(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
+                                    "stream=pix_fmt,width,height,nb_read_frames", "-of", "json", out],
+                                   capture_output=True, text=True).stdout)["streams"][0]
+    want = round(dur * FPS)
+    rep = dict(template=template, name=name, vars=vals, pix_fmt=pr["pix_fmt"], frames=int(pr["nb_read_frames"]),
+               frames_expected=want, size=f"{pr['width']}x{pr['height']}")
+    rep["alpha_ok"] = "a" in pr["pix_fmt"].replace("yuv", "")
+    if auto:
+        rep["auto_colors"] = {k: v for k, v in auto.items() if k != "set"}
+    rep["frames_ok"] = abs(rep["frames"] - want) <= 1
+    bad = []
+    for i, a in enumerate(alpha_frames(out, every=2)):
+        v = violations(a)
+        if v:
+            bad.append(dict(frame=i * 2, **v))
+    rep["safe_zone_ok"] = not bad
+    rep["safe_zone_violations"] = bad[:5]
+    times = [round(dur * f, 2) for f in (0.15, 0.35, 0.6, 0.85)]
+    rep["sheet"] = sheet(name, times, bg_t)
+    json.dump(rep, open(os.path.join(WORK, name + ".json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print(json.dumps({k: v for k, v in rep.items() if k != "vars"}, indent=1, ensure_ascii=False))
+    ok = rep["alpha_ok"] and rep["frames_ok"] and (rep["safe_zone_ok"] or "--allow-outside" in sys.argv)
+    sys.exit(0 if ok else 1)
+
+
+def render_once(template, name, vals):
     b = build_dir(template, name)
     os.makedirs(WORK, exist_ok=True)
     vf = os.path.join(b, "vars.json"); json.dump(vals, open(vf, "w", encoding="utf-8"), ensure_ascii=False)
@@ -267,29 +331,52 @@ def cmd_render():
                        capture_output=True, text=True, env=hf_env())
     if r.returncode != 0 or not os.path.exists(out):
         print(r.stdout[-4000:], r.stderr[-3000:]); sys.exit("render failed")
-    # checks
-    pr = json.loads(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
-                                    "stream=pix_fmt,width,height,nb_read_frames", "-of", "json", out],
-                                   capture_output=True, text=True).stdout)["streams"][0]
-    want = round(dur * FPS)
-    rep = dict(template=template, name=name, vars=vals, pix_fmt=pr["pix_fmt"], frames=int(pr["nb_read_frames"]),
-               frames_expected=want, size=f"{pr['width']}x{pr['height']}")
-    rep["alpha_ok"] = "a" in pr["pix_fmt"].replace("yuv", "")
-    rep["frames_ok"] = abs(rep["frames"] - want) <= 1
-    bad = []
-    for i, a in enumerate(alpha_frames(out, every=2)):
-        v = violations(a)
-        if v:
-            bad.append(dict(frame=i * 2, **v))
-    rep["safe_zone_ok"] = not bad
-    rep["safe_zone_violations"] = bad[:5]
-    bg_t = float(arg("--bg-time")) if arg("--bg-time") else None
-    times = [round(dur * f, 2) for f in (0.15, 0.35, 0.6, 0.85)]
-    rep["sheet"] = sheet(name, times, bg_t)
-    json.dump(rep, open(os.path.join(WORK, name + ".json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    print(json.dumps({k: v for k, v in rep.items() if k != "vars"}, indent=1, ensure_ascii=False))
-    ok = rep["alpha_ok"] and rep["frames_ok"] and (rep["safe_zone_ok"] or "--allow-outside" in sys.argv)
-    sys.exit(0 if ok else 1)
+    return out
+
+
+AUTO_ACCENT = ("title_reveal", "day_counter", "hop_map")       # accent drawn on the footage; elsewhere it is a fill behind text
+
+
+def auto_colors(mov, decl, vals, dur, bg_t, template="", thr=4.5):
+    """Worst-case contrast of the template's text colour against the footage under the rendered graphic
+    (union of solid alpha, dilated), at 3 moments; if below thr, pick lib_text's colour from those pixels."""
+    import cv2
+    import lib_text as T
+    defaults = {v["id"]: v.get("default") for v in decl}
+    mask = np.zeros((H, W), bool)
+    for a in alpha_frames(mov, every=3):
+        mask |= a > 160
+    if not mask.any():
+        return dict(changed=False, note="nothing opaque to measure")
+    mask = cv2.dilate(mask.astype(np.uint8), np.ones((9, 9), np.uint8)) > 0
+    bg = np.concatenate([background(bg_t + dur * f)[mask] for f in (0.3, 0.6, 0.85)]).astype(np.float64)
+    L = T.rel_lum(bg); lo, hi = float(np.percentile(L, 5)), float(np.percentile(L, 95))
+
+    def worst(rgb):
+        lt = float(T.rel_lum(np.asarray(rgb)))
+        return T.contrast(lt, hi) if lt > np.median(L) else T.contrast(lt, lo)
+    hexrgb = lambda h: np.array([int(h.lstrip("#")[i:i + 2], 16) / 255 for i in (0, 2, 4)])
+    tohex = lambda c: "#%02X%02X%02X" % tuple(int(round(float(x) * 255)) for x in c)
+    cur = str(vals.get("color") or defaults.get("color") or ("#1E1712" if vals.get("theme") == "dark" else "#FFFFFF"))
+    before = round(worst(hexrgb(cur)), 2)
+    if before >= thr:
+        return dict(changed=False, color=cur, contrast=before)
+    cands, accent, _ = T.local_colors(bg.astype(np.float32))
+    scored = [(k, c, worst(c)) for k, c in cands]                  # lib_text's harmony order
+    passing = [x for x in scored if x[2] >= thr]
+    best = passing[0] if passing else max(scored, key=lambda x: x[2])
+    if not passing and best[2] <= before:                       # busy background: no colour wins, keep the original
+        return dict(changed=False, color=cur, contrast=before,
+                    note=f"no colour reaches {thr}:1 on this background (light and dark under the text); "
+                         "the text shadow carries it: check the sheet, or place the graphic over a calmer area")
+    new = {"color": tohex(best[1])}
+    ids = {v["id"] for v in decl}
+    if "accent" in ids and "accent" not in vals and accent is not None and template.startswith(AUTO_ACCENT):
+        new["accent"] = tohex(accent)
+    if "shadow" in ids and "shadow" not in vals and float(T.rel_lum(best[1])) < 0.3:
+        new["shadow"] = 0.0                                     # dark text: no dark drop shadow
+    return dict(changed=True, set=new, kind=best[0], color_before=cur, contrast_before=before,
+                color=new["color"], contrast=round(best[2], 2))
 
 
 # ---------------------------------------------------------------- composite
