@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en" data-composition-variables='[
-  {"id":"chips","type":"string","label":"JSON list of {icon, text} (max 4; icon optional)","default":"[{\"icon\":\"⏰\",\"text\":\"6:12 AM\"},{\"icon\":\"🏍️\",\"text\":\"62 km ride\"},{\"icon\":\"☕\",\"text\":\"₹60 filter coffee\"}]"},
+  {"id":"chips","type":"string","label":"JSON list of {icon, text, count?} (max 4; icon optional; count:true rolls the first number up from 0)","default":"[{\"icon\":\"⏰\",\"text\":\"6:12 AM\"},{\"icon\":\"🏍️\",\"text\":\"62 km ride\"},{\"icon\":\"☕\",\"text\":\"₹60 filter coffee\"}]"},
   {"id":"position","type":"string","label":"top | upper | center | lower","default":"top"},
   {"id":"layout","type":"string","label":"stack | row","default":"stack"},
   {"id":"theme","type":"string","label":"dark | light","default":"dark"}
@@ -39,7 +39,7 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
   var chips = TR.json(v.chips, []).slice(0, 4), html = '';
   for (var i = 0; i < chips.length; i++) {
     html += '<div class="chip" id="c' + i + '">' + (chips[i].icon ? '<span class="ic">' + TR.esc(chips[i].icon) + '</span>' : '') +
-            '<span>' + TR.esc(chips[i].text) + '</span></div>';
+            '<span id="t' + i + '">' + TR.esc(chips[i].text) + '</span></div>';
   }
   wrap.innerHTML = html;
   gsap.set('.chip', { autoAlpha: 0, scale: 0.6, x: -30, transformOrigin: '0% 50%' });
@@ -47,6 +47,35 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
   var tl = gsap.timeline({ paused: true });
   window.__timelines["main"] = tl;
   tl.to('.chip', { autoAlpha: 1, scale: 1, x: 0, duration: 0.42, ease: 'back.out(1.8)', stagger: 0.14 }, 0.1);
+  /* count-up: the first number in the text (e.g. "62 km", "₹240") rolls from 0. Each step is its own span,
+     switched with tl.set (state, not callbacks: the renderer seeks frame by frame and seek skips callbacks).
+     Times like "6:12 AM" are never counted: count must be asked for per chip. */
+  var NUM = /(\d[\d,]*(?:\.\d+)?)/;
+  chips.forEach(function (c, i) {
+    if (!c.count) return;
+    var m = String(c.text).match(NUM);
+    if (!m) return;
+    var target = parseFloat(m[1].replace(/,/g, '')), dec = (m[1].split('.')[1] || '').length;
+    var pre = String(c.text).slice(0, m.index), post = String(c.text).slice(m.index + m[1].length);
+    /* keep the grouping the number was written with: Indian lakh style only when the text uses it
+       ("₹1,24,000"), else thousands ("250,000₫", "1,240") */
+    var loc = /\d,\d\d,\d{3}/.test(m[1]) ? 'en-IN' : 'en-US';
+    var fmt = function (n) {
+      var s2 = n.toFixed(dec);
+      return m[1].indexOf(',') >= 0 ? Number(s2).toLocaleString(loc, { minimumFractionDigits: dec, maximumFractionDigits: dec }) : s2;
+    };
+    var el = document.getElementById('t' + i), start = 0.1 + i * 0.14, dur = 0.9, steps = 18, h2 = '';
+    for (var k = 0; k <= steps; k++) {
+      var p2 = k / steps, eased = 1 - Math.pow(1 - p2, 3);
+      h2 += '<span id="t' + i + '_' + k + '" style="display:' + (k ? 'none' : 'inline') + '">' + TR.esc(pre + fmt(target * eased) + post) + '</span>';
+    }
+    el.innerHTML = h2;
+    for (var k2 = 1; k2 <= steps; k2++) {
+      var at = start + (k2 / steps) * dur;
+      tl.set('#t' + i + '_' + (k2 - 1), { display: 'none' }, at);
+      tl.set('#t' + i + '_' + k2, { display: 'inline' }, at);
+    }
+  });
   tl.to('.chip', { autoAlpha: 0, x: -24, duration: 0.3, ease: 'power2.in', stagger: 0.06 }, 3.0);
   tl.set({}, {}, 3.5);
 })();

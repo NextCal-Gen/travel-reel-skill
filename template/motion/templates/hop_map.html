@@ -1,7 +1,9 @@
 <!doctype html>
 <html lang="en" data-composition-variables='[
   {"id":"outline","type":"string","label":"SVG path of the country in a 1000x1000 box (from 70_motion.py map)","default":"M420 60 L620 120 L700 400 L640 700 L520 940 L380 900 L330 600 L300 300 Z"},
-  {"id":"stops","type":"string","label":"JSON list of {label, x, y, sub?} in the same 1000x1000 box, in route order","default":"[{\"label\":\"Hanoi\",\"x\":470,\"y\":180},{\"label\":\"Hue\",\"x\":600,\"y\":520},{\"label\":\"Hoi An\",\"x\":620,\"y\":610,\"sub\":\"days 6-8\"},{\"label\":\"Saigon\",\"x\":470,\"y\":880}]"},
+  {"id":"stops","type":"string","label":"JSON list of places {label, x, y, sub?, edge?} in the 1000x1000 box (edge = outside the country, drawn at the border)","default":"[{\"label\":\"Bengaluru\",\"x\":300,\"y\":640,\"edge\":true},{\"label\":\"Hanoi\",\"x\":470,\"y\":180},{\"label\":\"Hoi An\",\"x\":620,\"y\":610,\"sub\":\"days 6-8\"},{\"label\":\"Saigon\",\"x\":470,\"y\":880}]"},
+  {"id":"route","type":"string","label":"JSON list of stop indexes in travel order (empty = stops in order)","default":"[0,1,2,3]"},
+  {"id":"legs","type":"string","label":"JSON list of traveller icons per leg: plane | bike | car | none (empty = all plane)","default":"[\"plane\",\"plane\",\"plane\"]"},
   {"id":"title","type":"string","label":"Title above the map (empty = none)","default":"VIETNAM · 14 DAYS"},
   {"id":"color","type":"color","label":"Text and outline colour","default":"#FFF8EE"},
   {"id":"accent","type":"color","label":"Route and pin colour","default":"#F2C14E"},
@@ -23,7 +25,10 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
 .lab{position:absolute;white-space:nowrap;font-family:'Be Vietnam Pro',sans-serif;font-weight:700;font-size:42px;line-height:1.05;
   text-shadow:0 3px 12px rgba(0,0,0,.5)}
 .lab small{display:block;font-weight:600;font-size:28px;opacity:.85;margin-top:4px}
+.lab.edge{font-size:32px;font-weight:600;opacity:.92}
 .L{text-align:right}.R{text-align:left}
+#trav{position:absolute;left:0;top:0;width:60px;height:60px;margin:-30px 0 0 -30px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.45))}
+#trav svg{position:absolute;left:0;top:0;width:60px;height:60px}
 </style>
 </head>
 <body>
@@ -31,30 +36,35 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
   <div id="ttl"></div>
   <svg id="map" viewBox="110 0 780 1000" fill="none" stroke-linecap="round" stroke-linejoin="round"></svg>
   <div id="labs"></div>
+  <div id="trav"></div>
 </div>
 <script>
 (function () {
   var v = TR.vars();
   var col = v.color || '#FFF8EE', acc = v.accent || '#F2C14E';
   var stops = TR.json(v.stops, []);
-  /* the 1000x1000 map box is shown at 1:1 in a 780x1000 window (x 110-890 of the box), placed at x 150, y 360:
-     page px = (box x - 110) + 150, page y = box y + 360. 70_motion.py centres maps in that window. */
+  var route = TR.json(v.route, []);
+  if (!route.length) route = stops.map(function (s, i) { return i; });
+  var legs = TR.json(v.legs, []);
+  /* 1000x1000 map box shown 1:1 in a 780x1000 window (box x 110-890) placed at page x 150, y 360 */
   var X = function (bx) { return bx - 110 + 150; }, Y = function (by) { return by + 360; };
   var ttl = document.getElementById('ttl');
   if (v.title) { ttl.textContent = v.title; ttl.style.color = col; } else ttl.style.display = 'none';
-  var route = '';
-  for (var i = 0; i < stops.length; i++) route += (i ? ' L' : 'M') + stops[i].x + ' ' + stops[i].y;
+
   var svg = '<path id="land" d="' + (v.outline || '') + '" fill="' + (v.land || 'rgba(255,248,238,0.16)') + '" stroke="' + col + '" stroke-width="3.5"/>';
-  for (var s = 1; s < stops.length; s++) {
-    svg += '<path id="seg' + s + '" d="M' + stops[s - 1].x + ' ' + stops[s - 1].y + ' L' + stops[s].x + ' ' + stops[s].y + '" stroke="' + acc + '" stroke-width="7"/>';
+  for (var s = 1; s < route.length; s++) {
+    var a = stops[route[s - 1]], b = stops[route[s]];
+    var dash = (a.edge || b.edge) ? ' stroke-dasharray="2 16"' : '';            /* legs to/from abroad: dotted */
+    svg += '<path id="seg' + s + '" d="M' + a.x + ' ' + a.y + ' L' + b.x + ' ' + b.y + '" stroke="' + acc + '" stroke-width="7"' + dash + '/>';
   }
   for (var p = 0; p < stops.length; p++) {
+    if (stops[p].edge) continue;
     svg += '<circle id="ring' + p + '" cx="' + stops[p].x + '" cy="' + stops[p].y + '" r="16" stroke="' + acc + '" stroke-width="4"/>' +
            '<circle id="pin' + p + '" cx="' + stops[p].x + '" cy="' + stops[p].y + '" r="14" fill="' + acc + '" stroke="' + col + '" stroke-width="4"/>';
   }
   document.getElementById('map').innerHTML = svg;
-  /* labels: estimated box from text length (no measuring), side chosen away from the neighbouring stops,
-     then the first side that doesn't collide with placed labels or pins; else nudged vertically */
+
+  /* labels: estimated boxes (no measuring), side away from route neighbours, first collision-free side, else nudged */
   var placed = [], html = '';
   var pinBoxes = stops.map(function (st) { return { x: X(st.x) - 22, y: Y(st.y) - 22, w: 44, h: 44 }; });
   var hit = function (r) {
@@ -65,13 +75,19 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
     }
     return false;
   };
+  var firstIdx = route[0], lastIdx = route[route.length - 1];
   for (var q = 0; q < stops.length; q++) {
     var st = stops[q], text = String(st.label || '');
-    var w = Math.min(360, Math.max(80, text.length * 25 + 10)), h = st.sub ? 86 : 50;
-    var nb = [], dxs = 0;
-    if (q > 0) nb.push(stops[q - 1]); if (q < stops.length - 1) nb.push(stops[q + 1]);
-    nb.forEach(function (n) { dxs += n.x - st.x; });
-    var first = nb.length ? (dxs > 0 ? 'L' : 'R') : (st.x < 500 ? 'R' : 'L');
+    if (st.edge) text = (q === firstIdx && q === lastIdx ? '⇄ ' : q === firstIdx ? 'from ' : 'to ') + text;
+    var fs = st.edge ? 19 : 25;
+    var w = Math.min(380, Math.max(80, text.length * fs + 10)), h = st.sub ? 86 : (st.edge ? 40 : 50);
+    var dxs = 0;
+    for (var r2 = 0; r2 < route.length; r2++) {
+      if (route[r2] !== q) continue;
+      if (r2 > 0) dxs += stops[route[r2 - 1]].x - st.x;
+      if (r2 < route.length - 1) dxs += stops[route[r2 + 1]].x - st.x;
+    }
+    var first = dxs ? (dxs > 0 ? 'L' : 'R') : (st.x < 500 ? 'R' : 'L');
     var sides = first === 'R' ? ['R', 'L'] : ['L', 'R'], chosen = null;
     var box = function (side, dy) {
       var lx = side === 'R' ? X(st.x) + 30 : X(st.x) - 30 - w;
@@ -80,27 +96,61 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
     };
     var tries = [0, 40, -40, 80, -80, 120, -120];
     for (var t = 0; t < tries.length && !chosen; t++) {
-      for (var k = 0; k < 2 && !chosen; k++) { var r = box(sides[k], tries[t]); if (!hit(r)) chosen = r; }
+      for (var k = 0; k < 2 && !chosen; k++) { var rb = box(sides[k], tries[t]); if (!hit(rb)) chosen = rb; }
     }
     if (!chosen) chosen = box(sides[0], 0);
     placed.push(chosen);
-    html += '<div class="lab ' + chosen.side + '" id="lab' + q + '" style="left:' + chosen.x + 'px;top:' + chosen.y + 'px;width:' + w + 'px;color:' + col + '">' +
+    html += '<div class="lab ' + chosen.side + (st.edge ? ' edge' : '') + '" id="lab' + q + '" style="left:' + chosen.x + 'px;top:' + chosen.y + 'px;width:' + w + 'px;color:' + col + '">' +
             TR.esc(text) + (st.sub ? '<small>' + TR.esc(st.sub) + '</small>' : '') + '</div>';
   }
   document.getElementById('labs').innerHTML = html;
+
+  /* traveller icons (drawn here, not copied from anywhere): plane points up, bike and car face right */
+  var ICON = {
+    plane: '<svg viewBox="0 0 24 24"><path fill="' + col + '" stroke="rgba(0,0,0,.35)" stroke-width=".6" d="M12 1.2c.8 0 1.4 1 1.4 2.2V9l8.4 4.6v2.2l-8.4-2.4v5.1l2.4 1.7v1.6L12 21l-3.8.8v-1.6l2.4-1.7v-5.1l-8.4 2.4v-2.2L10.6 9V3.4c0-1.2.6-2.2 1.4-2.2z"/></svg>',
+    bike: '<svg viewBox="0 0 24 24"><g fill="none" stroke="' + col + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<circle cx="5" cy="16.5" r="3.6"/><circle cx="19" cy="16.5" r="3.6"/><path d="M5 16.5l4.2-5.5h5.6l4.2 5.5M9.2 11l-1.4-3H5.6M14.8 11l1.8-4.2h2.6"/></g>' +
+          '<path fill="' + col + '" d="M9.6 9.6h6.2l-1.1 2.6H9z"/></svg>',
+    car: '<svg viewBox="0 0 24 24"><path fill="' + col + '" stroke="rgba(0,0,0,.35)" stroke-width=".5" d="M3 15.8v-3.3l2.3-4.6c.3-.6.9-.9 1.5-.9h8.4c.6 0 1.1.3 1.4.8l2.6 4.2 1.4.4c.6.2 1 .7 1 1.3v2.1c0 .5-.4.9-.9.9H3.9c-.5 0-.9-.4-.9-.9zM7.3 8.5l-1.6 3.4h5.4V8.5zm5.2 0v3.4h5.4l-2.1-3.4z"/>' +
+         '<circle cx="7.2" cy="17" r="2.3" fill="#1d1a17" stroke="' + col + '" stroke-width="1.2"/><circle cx="17" cy="17" r="2.3" fill="#1d1a17" stroke="' + col + '" stroke-width="1.2"/></svg>'
+  };
+  var trav = document.getElementById('trav');
+  var used = {};
+  for (var lg = 0; lg < route.length - 1; lg++) { var md = legs[lg] || 'plane'; if (ICON[md]) used[md] = 1; }
+  var ih = '';
+  for (var key in used) ih += '<div id="ic_' + key + '" style="position:absolute;left:0;top:0;width:60px;height:60px">' + ICON[key] + '</div>';
+  trav.innerHTML = ih;
 
   var land = document.getElementById('land'), ll = land.getTotalLength();
   gsap.set(land, { attr: { 'stroke-dasharray': ll, 'stroke-dashoffset': ll }, fillOpacity: 0 });
   gsap.set('#ttl', { autoAlpha: 0, y: 14 });
   gsap.set('.lab', { autoAlpha: 0, y: 10 });
-  for (var a = 0; a < stops.length; a++) {
-    gsap.set('#pin' + a, { scale: 0, transformOrigin: '50% 50%' });
-    gsap.set('#ring' + a, { scale: 1, autoAlpha: 0, transformOrigin: '50% 50%' });
+  gsap.set('#trav', { autoAlpha: 0 });
+  for (var key2 in used) gsap.set('#ic_' + key2, { autoAlpha: 0 });
+  for (var a2 = 0; a2 < stops.length; a2++) {
+    if (stops[a2].edge) continue;
+    gsap.set('#pin' + a2, { scale: 0, transformOrigin: '50% 50%' });
+    gsap.set('#ring' + a2, { scale: 1, autoAlpha: 0, transformOrigin: '50% 50%' });
   }
-  var lens = [];
-  for (var b = 1; b < stops.length; b++) {
-    var sg = document.getElementById('seg' + b), sl = sg.getTotalLength();
-    lens.push(sl); gsap.set(sg, { attr: { 'stroke-dasharray': sl, 'stroke-dashoffset': sl } });
+  var lens = [], masks = [];
+  for (var b2 = 1; b2 < route.length; b2++) {
+    var sg = document.getElementById('seg' + b2), sl = sg.getTotalLength();
+    lens.push(sl);
+    if (sg.getAttribute('stroke-dasharray')) {
+      /* dotted legs reveal through a mask stroke, so the dot pattern stays intact */
+      var id = 'm' + b2, ns = 'http://www.w3.org/2000/svg';
+      var m = document.createElementNS(ns, 'mask'); m.setAttribute('id', id); m.setAttribute('maskUnits', 'userSpaceOnUse');
+      var mp = document.createElementNS(ns, 'path'); mp.setAttribute('d', sg.getAttribute('d')); mp.setAttribute('stroke', '#fff');
+      mp.setAttribute('stroke-width', '14'); mp.setAttribute('fill', 'none'); mp.setAttribute('stroke-linecap', 'round');
+      mp.setAttribute('id', 'mp' + b2); m.appendChild(mp);
+      document.getElementById('map').insertBefore(m, document.getElementById('map').firstChild);
+      sg.setAttribute('mask', 'url(#' + id + ')');
+      gsap.set(mp, { attr: { 'stroke-dasharray': sl, 'stroke-dashoffset': sl } });
+      masks.push('#mp' + b2);
+    } else {
+      gsap.set(sg, { attr: { 'stroke-dasharray': sl, 'stroke-dashoffset': sl } });
+      masks.push('#seg' + b2);
+    }
   }
   window.__timelines = window.__timelines || {};
   var tl = gsap.timeline({ paused: true });
@@ -108,20 +158,43 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
   tl.to('#ttl', { autoAlpha: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 0.05);
   tl.to(land, { attr: { 'stroke-dashoffset': 0 }, duration: 1.0, ease: 'power2.inOut' }, 0.10);
   tl.to(land, { fillOpacity: 1, duration: 0.5, ease: 'power1.out' }, 0.75);
-  /* route: segments share 1.2 s .. 4.4 s in proportion to their length; a pin pops as the line reaches it */
-  var tot = lens.reduce(function (m, n) { return m + n; }, 0) || 1, t = 1.2, span = 3.2;
+  var shown = {};
   var pop = function (k, at) {
-    tl.to('#pin' + k, { scale: 1, duration: 0.3, ease: 'back.out(2.5)' }, at);
-    tl.fromTo('#ring' + k, { scale: 1, autoAlpha: 0.9 }, { scale: 2.6, autoAlpha: 0, duration: 0.6, ease: 'power2.out', immediateRender: false }, at);
+    if (shown[k]) return; shown[k] = 1;
+    if (!stops[k].edge) {
+      tl.to('#pin' + k, { scale: 1, duration: 0.3, ease: 'back.out(2.5)' }, at);
+      tl.fromTo('#ring' + k, { scale: 1, autoAlpha: 0.9 }, { scale: 2.6, autoAlpha: 0, duration: 0.6, ease: 'power2.out', immediateRender: false }, at);
+    }
     tl.to('#lab' + k, { autoAlpha: 1, y: 0, duration: 0.3, ease: 'power3.out' }, at + 0.05);
   };
-  if (stops.length) pop(0, 1.05);
-  for (var e = 1; e < stops.length; e++) {
-    var d = Math.max(0.35, span * lens[e - 1] / tot);
-    tl.to('#seg' + e, { attr: { 'stroke-dashoffset': 0 }, duration: d, ease: 'power1.inOut' }, t);
-    t += d; pop(e, t - 0.05);
+  /* route: legs share 1.2-4.6 s in proportion to length (each at least 0.35 s, scaled down if they overflow) */
+  var tot = lens.reduce(function (m2, n) { return m2 + n; }, 0) || 1, span = 3.4;
+  var durs = lens.map(function (l2) { return Math.max(0.35, span * l2 / tot); });
+  var sum = durs.reduce(function (m3, n) { return m3 + n; }, 0);
+  if (sum > span) durs = durs.map(function (d0) { return d0 * span / sum; });
+  var t0 = 1.2;
+  if (route.length) pop(route[0], 1.05);
+  var cur = null;
+  for (var e = 1; e < route.length; e++) {
+    var A = stops[route[e - 1]], B = stops[route[e]], d = durs[e - 1], mode = legs[e - 1] || 'plane';
+    tl.to(masks[e - 1], { attr: { 'stroke-dashoffset': 0 }, duration: d, ease: 'power1.inOut' }, t0);
+    if (ICON[mode]) {
+      var dx = B.x - A.x, dy = B.y - A.y, ang = Math.atan2(dy, dx) * 180 / Math.PI;
+      var flip = mode !== 'plane' && dx < 0 ? -1 : 1;
+      var tilt = Math.max(-25, Math.min(25, Math.atan2(dy, Math.abs(dx)) * 180 / Math.PI));
+      var rot = mode === 'plane' ? ang + 90 : flip * tilt;   /* plane follows its heading; bike/car tilt with the slope */
+      if (cur !== mode) {
+        if (cur) tl.set('#ic_' + cur, { autoAlpha: 0 }, t0);
+        tl.set('#ic_' + mode, { autoAlpha: 1 }, t0); cur = mode;
+      }
+      tl.set('#trav', { autoAlpha: 1, x: X(A.x), y: Y(A.y), rotation: rot, scaleX: flip }, t0);
+      tl.to('#trav', { x: X(B.x), y: Y(B.y), duration: d, ease: 'power1.inOut' }, t0);
+    } else {
+      tl.set('#trav', { autoAlpha: 0 }, t0);
+    }
+    t0 += d; pop(route[e], t0 - 0.05);
   }
-  tl.to(['#map', '#labs', '#ttl'], { autoAlpha: 0, duration: 0.4, ease: 'power2.in' }, 5.1);
+  tl.to(['#map', '#labs', '#ttl', '#trav'], { autoAlpha: 0, duration: 0.4, ease: 'power2.in' }, 5.1);
   tl.set({}, {}, 5.5);
 })();
 </script>

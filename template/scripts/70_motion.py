@@ -4,13 +4,15 @@ composited onto the graded timeline. Graphics never pass through the grade or th
 Run after `source scripts/env.sh`:
   70_motion.py list
       templates, durations and their variables
-  70_motion.py map --country Vietnam --stops "Hà Nội:21.03,105.85;Hội An:15.88,108.33:days 6-8" [--out assets/motion/map.json]
+  70_motion.py map --country Vietnam --stops "Bengaluru:12.97,77.59;Hanoi:21.03,105.85;Hoi An:15.88,108.33:days 6-8@bike"
+                  [--traveller plane|bike|car|none] [--merge-px 30] [--out assets/motion/map.json]
       country outline (Natural Earth, the country's own point-of-view borders where published) + stops,
       projected into the hop_map box. The output JSON is a --vars file for hop_map.
   70_motion.py render <template> [--name ID] [--vars file.json] [--set key=value ...] [--bg-time T] [--allow-outside]
-                    [--no-auto-colors]
+                    [--no-auto-colors] [--stutter 12]
       lint -> render work/motion/ID.mov -> checks (alpha, frame count, safe zone) -> assets/motion/ID_sheet.jpg
       (frames composited over the timeline at T when --bg-time is given, else over a neutral gradient). VIEW the sheet.
+      --stutter 12: the graphic steps at 12 fps inside the 30 fps reel (hand-built infographic look; footage stays smooth).
       Auto colours (with --bg-time, for templates with a `color` variable the user did not set): the text colour's
       worst-case contrast is measured against the footage under the rendered graphic; below 4.5:1 it is replaced
       by lib_text's pick from those pixels (+ its accent, shadow off for dark text) and the graphic re-rendered.
@@ -149,15 +151,24 @@ def find_country(fc, q, required=True):
 
 
 def cmd_map():
+    """Stops: "Label:lat,lon[:sub][@mode];..." in travel order (mode = plane | bike | car | none for the leg
+    arriving at that stop). Stops outside the country are drawn at its border ("from Bengaluru"); a trip that
+    leaves and returns to the same place abroad gets one "⇄" marker. Stops closer than --merge-px on the map
+    become one place ("Da Nang · Hoi An"). Traveller icon per leg: the stop's @mode, else --traveller, else
+    plane for an international trip (any stop abroad) and bike for a domestic one."""
     import cv2
     country = arg("--country") or sys.exit("--country required")
+    merge_px = float(arg("--merge-px", 30))
     stops = []
     for part in (arg("--stops", "") or "").split(";"):
         if not part.strip():
             continue
+        part, _, mode = part.partition("@")
         bits = part.split(":")
         lat, lon = (float(x) for x in bits[1].split(","))
-        stops.append(dict(label=bits[0].strip(), lat=lat, lon=lon, sub=":".join(bits[2:]).strip()))
+        stops.append(dict(label=bits[0].strip(), lat=lat, lon=lon, sub=":".join(bits[2:]).strip(), mode=mode.strip().lower()))
+    if len(stops) < 1:
+        sys.exit("--stops required")
     feat, src = ne_file(country)
     g = feat["geometry"]
     polys = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
@@ -168,16 +179,21 @@ def cmd_map():
     area = [abs(cv2.contourArea(p.astype(np.float32))) for p in P]
     big = max(area)
     sp = [proj(s["lon"], s["lat"]) for s in stops]
+    # inside the country? (point in any ring, with a small tolerance for coastal cities)
+    for s, q in zip(stops, sp):
+        s["abroad"] = all(cv2.pointPolygonTest(p.astype(np.float32).reshape(-1, 1, 2), (float(q[0]), float(q[1])), True) < -0.15
+                          for p in P)
+    home = [q for s, q in zip(stops, sp) if not s["abroad"]] or sp
     keep = []
     for p, a in zip(P, area):                                                     # drop specks, keep islands near stops
-        near = any(np.min(np.hypot(*(p - q).T)) < 0.3 for q in sp)
+        near = any(np.min(np.hypot(*(p - q).T)) < 0.3 for q in home)
         if a >= big * 0.004 or near:
             keep.append(p)
-    pts = np.concatenate(keep + ([np.array(sp)] if sp else []))
+    pts = np.concatenate(keep + [np.array(home)])
     lo, hi = pts.min(0), pts.max(0)
-    # hop_map shows box x 150-850 / y 40-960 (window x 110-890 of the 1000 box)
-    bw, bh = 700.0, 920.0
-    sc = min(bw / max(hi[0] - lo[0], 1e-9), bh / max(hi[1] - lo[1], 1e-9))
+    # hop_map shows box x 150-850 / y 40-960 (window x 110-890 of the 1000 box); 60 px margin for border markers
+    bw, bh, mg = 700.0, 920.0, 60.0
+    sc = min((bw - 2 * mg) / max(hi[0] - lo[0], 1e-9), (bh - 2 * mg) / max(hi[1] - lo[1], 1e-9))
     ox = 150 + (bw - (hi[0] - lo[0]) * sc) / 2 - lo[0] * sc
     oy = 40 + (bh - (hi[1] - lo[1]) * sc) / 2 - lo[1] * sc
     tf = lambda p: np.stack([p[..., 0] * sc + ox, p[..., 1] * sc + oy], axis=-1)
@@ -187,15 +203,55 @@ def cmd_map():
         q = cv2.approxPolyDP(q, 1.1, True).reshape(-1, 2)
         if len(q) >= 3:
             d.append("M" + " L".join(f"{x:.1f} {y:.1f}" for x, y in q) + " Z")
-    out_stops = []
+    # positions: places abroad go to the edge of the drawing, in their real direction from the country's centre
+    cx, cy = 150 + bw / 2, 40 + bh / 2
     for s, q in zip(stops, sp):
-        x, y = tf(np.array(q))
-        out_stops.append(dict(label=s["label"], x=round(float(x), 1), y=round(float(y), 1), **({"sub": s["sub"]} if s["sub"] else {})))
-    res = dict(outline=" ".join(d), stops=json.dumps(out_stops, ensure_ascii=False))
+        x, y = (float(v) for v in tf(np.array(q)))
+        if s["abroad"]:
+            dx, dy = x - cx, y - cy
+            k = min((bw / 2 - 25) / max(abs(dx), 1e-9), (bh / 2 - 25) / max(abs(dy), 1e-9))
+            x, y = cx + dx * k, cy + dy * k
+        s["x"], s["y"] = x, y
+    # merge nearby places into one node (same place visited again, or two places a few km apart)
+    nodes, route = [], []
+    for s in stops:
+        j = next((i for i, n in enumerate(nodes) if n["abroad"] == s["abroad"] and
+                  (n["labels"][0] == s["label"] or math.hypot(n["x"] - s["x"], n["y"] - s["y"]) < merge_px)), None)
+        if j is None:
+            nodes.append(dict(labels=[s["label"]], subs=[s["sub"]] if s["sub"] else [], x=s["x"], y=s["y"], abroad=s["abroad"]))
+            j = len(nodes) - 1
+        else:
+            n = nodes[j]
+            if s["label"] not in n["labels"]:
+                n["labels"].append(s["label"])
+            if s["sub"] and s["sub"] not in n["subs"]:
+                n["subs"].append(s["sub"])
+        if not route or route[-1] != j:
+            route.append(j)
+    international = any(s["abroad"] for s in stops)
+    default = arg("--traveller") or ("plane" if international else "bike")
+    if default not in ("plane", "bike", "car", "none"):
+        sys.exit("--traveller must be plane, bike, car or none")
+    # mode of each leg = the @mode of the first stop that leg arrives at
+    legs, seq = [], []
+    for s in stops:                                                                # rebuild leg modes on the merged route
+        j = next(i for i, n in enumerate(nodes) if s["label"] in n["labels"])
+        if not seq or seq[-1][0] != j:
+            seq.append((j, s["mode"]))
+    legs = [(m or default) for _, m in seq[1:]]
+    # merged places: the first name is the label, the others go on the small line under it
+    out_stops = [dict(label=n["labels"][0], x=round(n["x"], 1), y=round(n["y"], 1),
+                      **({"sub": " · ".join(n["labels"][1:] + n["subs"])} if (n["labels"][1:] or n["subs"]) else {}),
+                      **({"edge": True} if n["abroad"] else {}))
+                 for n in nodes]
+    res = dict(outline=" ".join(d), stops=json.dumps(out_stops, ensure_ascii=False), route=json.dumps(route),
+               legs=json.dumps(legs))
     out = arg("--out", os.path.join(ASSETS, "map.json"))
     os.makedirs(os.path.dirname(out), exist_ok=True)
     json.dump(res, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    print(f"{out}: {len(d)} polygons, {sum(s.count('L') for s in d)} points, {len(out_stops)} stops; borders from {src}")
+    print(f"{out}: {len(d)} polygons, {sum(s.count('L') for s in d)} points; borders from {src}")
+    print(f"places: {[n['labels'] for n in nodes]}  route: {route}  legs: {legs}  "
+          f"({'international' if international else 'domestic'} trip, default traveller {default})")
     print("Use: 70_motion.py render hop_map --vars", os.path.relpath(out, ROOT), "--set title=...")
 
 
@@ -292,6 +348,13 @@ def cmd_render():
         auto = auto_colors(out, decl, vals, dur, bg_t, template)
         if auto.get("changed"):
             vals.update(auto["set"]); out = render_once(template, name, vals)
+    if arg("--stutter"):                                    # Vox-style stepped motion: hold each pose for 30/N frames
+        n = float(arg("--stutter"))
+        tmp = out + ".stutter.mov"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", out, "-vf", f"fps={n:g},fps={FPS}", "-c:v", "prores_ks",
+                        "-profile:v", "4444", "-pix_fmt", "yuva444p10le", "-alpha_bits", "16", "-an", out_tmp := tmp],
+                       check=True)
+        os.replace(out_tmp, out)
     # checks
     pr = json.loads(subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries",
                                     "stream=pix_fmt,width,height,nb_read_frames", "-of", "json", out],

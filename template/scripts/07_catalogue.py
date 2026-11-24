@@ -187,6 +187,43 @@ for r in rows:
     if len(p) >= 2 and r["duration_s"] > 0:
         far = max(haversine(p[0], q) for q in p[1:])
         r["moving"] = far / r["duration_s"] * 3.6 > MOVE_KMH
+# filename clock cross-check (cameras without a UTC offset in their metadata). Insta360 (VID_/IMG_/LRV_),
+# Samsung (YYYYMMDD_HHMMSS) and DJI (DJI_YYYYMMDDHHMMSS) name files by the camera's LOCAL wall clock.
+# Comparing it with the metadata time shows whether CreateDate is really UTC, and which zone the camera's clock is
+# set to (e.g. still on home time after a flight). Pixel's PXL_ names are UTC, so they are not used.
+FN = re.compile(r"(?:^|[_-])(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})")
+for r in rows:
+    if r["offset"] is not None or r["t_utc"] is None or r["clip"].upper().startswith("PXL_"):
+        continue
+    m = FN.search(r["clip"])
+    if not m:
+        continue
+    try:
+        fn_local = datetime(*map(int, m.groups()))
+    except ValueError:
+        continue
+    implied = fn_local - r["t_utc"]                       # camera clock zone, if CreateDate is true UTC
+    mins = round(implied.total_seconds() / 60)
+    r["filename_time"] = fn_local.isoformat()
+    if abs(mins) <= 2:                                     # CreateDate holds LOCAL time, not UTC
+        if trip_off is not None:
+            r["t_utc"] = fn_local - trip_off
+            r["local"] = fn_local
+            r["time_source"] += f" -> camera writes local time; UTC = filename time - trip offset {trip_off}"
+        else:
+            warn.append(f"{r['clip']}: metadata time equals the filename's local time (camera writes local time, not UTC) "
+                        f"and no trip offset is known: pass --tz-offset so it lands on the right day and visit")
+    elif mins % 15 == 0 and -12 * 60 <= mins <= 14 * 60:   # a real zone: the camera's clock is set to it
+        zone = timedelta(minutes=mins)
+        if trip_off is not None and zone != trip_off:
+            warn.append(f"{r['clip']}: camera clock is on UTC{'+' if mins >= 0 else '-'}{abs(mins) // 60:02d}:{abs(mins) % 60:02d}, "
+                        f"the trip's other clips on {trip_off}: its time zone wasn't updated (grouping uses UTC, so it is still "
+                        f"placed correctly; update the camera's zone in its app)")
+        if trip_off is None:
+            r["local"] = fn_local                          # best local guess: the camera's own clock
+    else:
+        warn.append(f"{r['clip']}: filename time and metadata time differ by {mins} min (not a time zone): "
+                    f"camera clock is wrong; ask the user, or correct with the phone clips of the same moment")
 no_gps = [r["clip"] for r in rows if not r["points"]]
 if no_gps:
     warn.append(f"{len(no_gps)}/{len(rows)} clips have no GPS (e.g. Insta360 Studio exports): grouped by time + visuals; "

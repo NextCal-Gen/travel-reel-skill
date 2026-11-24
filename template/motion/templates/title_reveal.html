@@ -8,7 +8,9 @@
   {"id":"font","type":"string","label":"serif | sans","default":"serif"},
   {"id":"color","type":"color","label":"Text colour","default":"#FFF8EE"},
   {"id":"accent","type":"color","label":"Accent (kicker, rule)","default":"#F2C14E"},
-  {"id":"shadow","type":"number","label":"Text shadow strength 0-1","default":0.45}
+  {"id":"shadow","type":"number","label":"Text shadow strength 0-1","default":0.45},
+  {"id":"leak","type":"number","label":"Light leak strength 0-1 (0 = off; warm glow sweeping across, film-style)","default":0},
+  {"id":"grain","type":"number","label":"Film grain strength 0-1 (0 = off)","default":0}
 ]'>
 <head>
 <meta charset="UTF-8" />
@@ -30,10 +32,15 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
 #sub{text-wrap:balance;font-family:'Be Vietnam Pro',sans-serif;font-weight:500;font-size:40px;line-height:1.25;margin-top:22px}
 .center{text-align:center}.center #rule{margin-left:auto;margin-right:auto}
 .left{text-align:left}
+#leak{position:absolute;left:-400px;top:-200px;width:1880px;height:2320px;pointer-events:none;
+  background:radial-gradient(ellipse 34% 26% at 30% 34%,rgba(255,176,92,.95),rgba(255,120,60,.55) 38%,rgba(255,90,40,0) 70%),
+             radial-gradient(ellipse 22% 40% at 70% 62%,rgba(255,214,150,.75),rgba(255,160,90,0) 70%)}
+#grain{position:absolute;left:0;top:0;width:1080px;height:1920px;pointer-events:none}
 </style>
 </head>
 <body>
 <div id="root" data-composition-id="main" data-start="0" data-duration="3.2" data-width="1080" data-height="1920">
+  <div id="leak"></div><div id="grain"></div>
   <div id="block"><div id="kick"></div><div id="tclip"><div id="title"></div></div><div id="rule"></div><div id="sub"></div></div>
 </div>
 <script>
@@ -56,6 +63,25 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
   if (!v.kicker) document.getElementById('kick').style.display = 'none';
   if (!v.subtitle) document.getElementById('sub').style.display = 'none';
 
+  /* light leak: a warm glow that drifts across and fades (screen-blended inside this layer, so it brightens the
+     graphic's own pixels; over the footage it shows as a soft warm wash through the alpha) */
+  var leak = Math.max(0, Math.min(1, TR.num(v.leak, 0)));
+  if (leak <= 0) document.getElementById('leak').style.display = 'none';
+  gsap.set('#leak', { autoAlpha: 0, x: -260, rotation: -8, transformOrigin: '50% 50%' });
+  /* grain: 6 seeded noise tiles (no Math.random), one shown at a time, swapped every 2 frames with tl.set */
+  var grain = Math.max(0, Math.min(1, TR.num(v.grain, 0))), gw = document.getElementById('grain');
+  if (grain > 0) {
+    var seed = 7, rnd = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (var gi = 0; gi < 6; gi++) {
+      var cv = document.createElement('canvas'); cv.width = 540; cv.height = 960; cv.id = 'g' + gi;
+      cv.style.cssText = 'position:absolute;left:0;top:0;width:1080px;height:1920px;visibility:' + (gi ? 'hidden' : 'visible');
+      var cx = cv.getContext('2d'), im = cx.createImageData(540, 960);
+      for (var px = 0; px < im.data.length; px += 4) {
+        var g = rnd() * 255; im.data[px] = im.data[px + 1] = im.data[px + 2] = g; im.data[px + 3] = 16 * grain;
+      }
+      cx.putImageData(im, 0, 0); gw.appendChild(cv);
+    }
+  } else gw.style.display = 'none';
   gsap.set('#kick', { autoAlpha: 0, y: 18 });
   gsap.set('#title', { yPercent: 110 });
   gsap.set('#rule', { scaleX: 0, transformOrigin: align === 'left' ? '0% 50%' : '50% 50%' });
@@ -67,6 +93,18 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
   tl.to('#title', { yPercent: 0, duration: 0.75, ease: 'expo.out' }, 0.22);
   tl.to('#rule', { scaleX: 1, duration: 0.6, ease: 'power3.inOut' }, 0.55);
   tl.to('#sub', { autoAlpha: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.75);
+  if (leak > 0) {
+    tl.to('#leak', { autoAlpha: 0.18 * leak, x: 0, duration: 1.0, ease: 'sine.inOut' }, 0.0);   /* a wash, never solid: leak 0.18 + grain 16/255 at full strength stay under the safe-zone check's 64/255 alpha, since both cover the whole frame */
+    tl.to('#leak', { x: 300, rotation: 4, duration: 2.0, ease: 'sine.inOut' }, 1.0);
+    tl.to('#leak', { autoAlpha: 0, duration: 0.6, ease: 'sine.in' }, 2.55);
+  }
+  if (grain > 0) {
+    for (var fi = 1; fi < 48; fi++) {
+      tl.set('#g' + ((fi - 1) % 6), { visibility: 'hidden' }, fi * (2 / 30));
+      tl.set('#g' + (fi % 6), { visibility: 'visible' }, fi * (2 / 30));
+    }
+    tl.to('#grain', { autoAlpha: 0, duration: 0.45 }, 2.70);
+  }
   tl.to('#block', { autoAlpha: 0, y: -16, filter: 'blur(8px)', duration: 0.45, ease: 'power2.in' }, 2.70);
   tl.set({}, {}, 3.2);
 })();

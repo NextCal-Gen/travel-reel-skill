@@ -141,6 +141,14 @@ For every file in `raw/`:
 4. Never classify from filename, aspect ratio, bit depth, or "looks washed out" alone.
    Raw `.insv` files need stitching in Insta360 Studio first; ask the user if only `.insv` exists.
    A silent audio track (−240 dBFS) on a short, fast 360 clip indicates a TimeShift/timelapse capture.
+5. **Device quirks to expect:** iPhone HDR video is Dolby Vision profile 8 on an HLG base (10-bit HEVC,
+   rotation metadata on portrait clips, extra timecode/metadata tracks); 10-bit alone does not mean HDR
+   or Log (trust the transfer function, not the bit depth); phone clips are VFR until measured otherwise
+   (conform before cutting); DJI drones record no audio.
+6. **Camera clocks:** `07_catalogue.py` cross-checks each offset-less clip's metadata time against the local
+   time in its filename (Insta360 `VID_`, Samsung, DJI) and warns when a camera's clock zone wasn't updated
+   after travel, or corrects clips whose camera writes local time instead of UTC. Read its warnings before
+   trusting days and visits; after a flight into another time zone, expect them.
 
 Write `assets/source_inventory.csv` with: filename, camera, type, resolution, fps, VFR,
 bit depth, primaries, transfer, range (measured), Log/HDR profile, projection, required
@@ -242,6 +250,11 @@ rough cut instead. Otherwise:
 - `assets/edl.csv` written from ONE script holding the shot list (id, clip, in/out, keyframes,
   motion mode, repairs, role, privacy note). Storyboard strip (first/mid/last frame of each shot,
   graded) before any full render.
+- **Shot scoring** (show it as a ranked shortlist before writing the EDL; the user can override):
+  visual hook 30% (would it stop a scroll in the first second?), stands alone 20% (reads without
+  context), motion / energy 20%, scenery or detail value 20%, payoff / ending potential 10%. Score each
+  candidate 0–10 per dimension from the frames you viewed, one line of reason each. For multi-reel
+  projects a hero shot may appear in a place reel and a journey reel, never twice in one reel.
 - **Then run Phase 3 diagnostics on the EDL clips** (`11_diagnostics.py --edl`), build only the
   triggered repairs, and render.
 
@@ -250,6 +263,9 @@ rough cut instead. Otherwise:
 - **Structure:** hook → journey → arrival/discovery → destination → payoff → ending. Never invent
   places or events. Riding footage → follow the user's opener preference in `CLAUDE.md`.
 - **Duration:** target range in `CLAUDE.md`; up to 30 s only when earned or when extras are added; say why.
+- **Loop ending:** pick the last shot so it flows back into the first (matching direction of motion,
+  similar framing or colour, or the journey returning to where it began), so the reel re-watches
+  naturally. If no shot does, end on a clean hold instead of forcing it; say which you chose.
 - **360:** v360 rectilinear at the source's native pixels per degree (h_fov 68–80 at 1080 wide for 5.7K).
   Eased moves, one continuous virtual move over extra cuts, no extra 360 effects unless chosen.
 - **Flat:** subject-aware 9:16 crop; up to the source/1080 ratio (2× for 4K) without upscaling.
@@ -303,8 +319,11 @@ Always also export a clean version.
 
 **Motion graphics** (`70_motion.py`; templates in `template/motion/templates/`, HTML + GSAP rendered by
 HyperFrames to transparent ProRes 4444, composited onto the graded timeline; they never pass through
-the grade or LUTs). Seven templates: `title_reveal`, `verdict_card`, `annotate` (circle / arrow /
-underline that draws itself, handwritten label), `info_chips`, `comment_cta`, `day_counter`, `hop_map`.
+the grade or LUTs). Seven templates: `title_reveal` (optional `leak` light leak and `grain`, both 0 = off by default),
+`verdict_card`, `annotate` (circle / arrow / underline that draws itself, handwritten label, `boil` hand-
+animated wobble), `info_chips` (`count: true` on a chip rolls its number up: "62 km", "₹1,240"),
+`comment_cta`, `day_counter`, `hop_map` (route with a traveller icon per leg). Any render takes
+`--stutter 12` for a stepped, hand-built infographic look (off by default; suits maps).
 1. Plan in `assets/motion_plan.json`: `[{"id": ..., "start": seconds}]`, one entry per render, timed to
    cuts and not overlapping captions in the same area. Content from the user and the catalogue only
    (prices, ratings, times: never invented). `annotate` needs the target's pixel position in the
@@ -317,9 +336,14 @@ underline that draws itself, handwritten label), `info_chips`, `comment_cta`, `d
    the footage under the graphic; below 4.5:1 it switches to lib_text's pick (e.g. cream → navy on a bright
    sky, measured 1.49 → 5.83:1 on Kanakapura) and re-renders. On a busy background no colour may pass: the
    report says so and keeps the original; move the graphic or accept the shadow after viewing the sheet.
-3. `hop_map`: `70_motion.py map --country <name> --stops "Label:lat,lon[:sub];..."` first. Borders come
-   from Natural Earth, using the country's own point-of-view file where one is published (India,
-   Vietnam and about 30 others), so the map matches what that country considers correct.
+3. `hop_map`: `70_motion.py map --country <name> --stops "Label:lat,lon[:sub][@mode];..."` first, stops
+   in travel order including home (e.g. Bengaluru first and last). Borders come from Natural Earth, using
+   the country's own point-of-view file where one is published (India, Vietnam and about 30 others).
+   Places abroad are drawn at the border ("from Bengaluru", or "⇄ Bengaluru" for a round trip) with dotted
+   legs; places within `--merge-px` (default 30 px) become one pin, the others named on its small line
+   ("Da Nang" + "Ba Na Hills · Hoi An"). **Traveller icon per leg:** a stop's `@plane|@bike|@car|@none`,
+   else the user's choice, else **plane when the trip is international** (any stop abroad), **bike when
+   domestic**.
 4. `70_motion.py composite` → `work/timeline_motion.mov` (base: `timeline_text.mov` if captions exist,
    else `timeline_prores.mov`). Add `--preview <ver>` to write the muted rough-cut preview from it; the
    final export picks it up automatically.
@@ -340,6 +364,8 @@ run `50_privacy_scan.py` on the rendered shots and use **only the near-person fr
 > 35% of frame height), ignoring passers-by and distant faces. Merge consecutive hits into time
 ranges, view a frame from each range, and list the ones that could be the holder (body, hands,
 gloves, stick shadow) as rough-cut timestamps. Never reframe or cut on your own from this list.
+Shots that deliberately show the user (e.g. the helmet opener allowed by their standing defaults; mark
+them `holder_ok` in the EDL privacy note) are listed as "expected", not as hits.
 
 **Cut check:** `62_cut_check.py previews/rough_cut_vN.mp4` → `assets/cut_check.jpg` (last frame before
 and first frame after every cut, from the rendered file). View it: captions or graphics hanging over a
@@ -347,7 +373,10 @@ cut, black or stray frames and missed cuts show up here, not on a 1 fps sheet.
 
 🛑 **Gate 3:** report composition, color, motion, timing, sharpness, transitions, processing
 errors, cut-check flags, the holder-check timestamps (or "none found"), and what changed since the last version.
-Offer a phone copy for review (`80_export.py <out> --phone`, about 5 MB, never for posting).
+Build the **review page** (`63_review_page.py`, or `--all` for every reel of a multi-reel project):
+one local HTML file with each cut in a phone frame, the safe zone, a timeline of shots, captions and
+graphics, and a note box per item; the user copies their notes back as one instruction. Offer a phone
+copy as well (`80_export.py <out> --phone`, about 5 MB, never for posting).
 **The user checks faces/privacy on this cut.**
 Wait for approval or comments.
 
@@ -439,3 +468,6 @@ extras, QC results (only checks that actually ran), source limitations, caption 
     Experiments write to `work/test_*` (`--out`), and `cmp` before overwriting means stopping when it differs.
 20. **Template default colours ignore the footage** (cream on a bright sky measured 1.49:1). Auto colours fix
     it; a background that is both light and dark under the text has no passing colour at all.
+21. **Seek-driven renders skip GSAP callbacks.** HyperFrames seeks the timeline frame by frame, and a seek
+    doesn't fire `tl.call` callbacks, so anything stepped (count-ups, grain, boil) must be state switched
+    with `tl.set` (`display`, `visibility`, `x`, ...), never a callback that writes text.

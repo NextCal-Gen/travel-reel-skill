@@ -35,6 +35,12 @@ miss() { printf "  MISS  %s\n        -> %s\n" "$1" "$2"; fail=$((fail+1)); }
 
 check_system() {
   echo "System tools"
+  # the ffmpeg first on PATH is the one every script uses: a non-Homebrew copy (static download, conda, MacPorts)
+  # earlier in PATH hides the tap build, and --install-system would then "succeed" while the checks still fail
+  local ffp; ffp=$(command -v ffmpeg 2>/dev/null || true)
+  if [ -n "$ffp" ] && [ -x /opt/homebrew/bin/ffmpeg ] && [ "$ffp" != /opt/homebrew/bin/ffmpeg ]; then
+    printf "  WARN  ffmpeg on PATH is %s, not Homebrew's /opt/homebrew/bin/ffmpeg: remove it or put /opt/homebrew/bin first in PATH\n" "$ffp"
+  fi
   if command -v ffmpeg >/dev/null; then
     F=$(ffmpeg -hide_banner -filters 2>/dev/null)
     for f in zscale libplacebo libvmaf v360 lut3d; do

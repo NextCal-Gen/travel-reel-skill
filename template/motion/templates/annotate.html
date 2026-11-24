@@ -8,7 +8,8 @@
   {"id":"label","type":"string","label":"Handwritten label","default":"best seat in the house"},
   {"id":"label_side","type":"string","label":"above | below | left | right","default":"above"},
   {"id":"color","type":"color","label":"Ink colour","default":"#FFFFFF"},
-  {"id":"stroke","type":"number","label":"Line width (px)","default":9}
+  {"id":"stroke","type":"number","label":"Line width (px)","default":9},
+  {"id":"boil","type":"number","label":"Hand-animated wobble 0-1 (0 = still; the drawing shifts slightly every 3 frames)","default":0.5}
 ]'>
 <head>
 <meta charset="UTF-8" />
@@ -94,6 +95,16 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
   tl.to(p1, { attr: { 'stroke-dashoffset': 0 }, duration: 0.65, ease: 'power2.inOut' }, 0.10);
   if (p2) tl.to(p2, { attr: { 'stroke-dashoffset': 0 }, duration: 0.2, ease: 'power2.out' }, 0.72);
   tl.to('#lab', { autoAlpha: 1, y: 0, rotation: -2, duration: 0.35, ease: 'back.out(2)' }, 0.55);
+  /* boil: after the stroke is drawn, nudge ink + label by a seeded ±1.5 px / ±0.6° every 3 frames (0.1 s),
+     the classic hand-drawn animation look; deterministic, so every render is identical */
+  var boil = Math.max(0, Math.min(1, TR.num(v.boil, 0.5)));
+  if (boil > 0) {
+    var sd = 11, rnd = function () { sd = (sd * 16807) % 2147483647; return sd / 2147483647 - 0.5; };
+    for (var bt = 0.9; bt < 2.6; bt += 0.1) {
+      tl.set('#ink', { x: rnd() * 3 * boil, y: rnd() * 3 * boil, rotation: rnd() * 1.2 * boil, transformOrigin: x + 'px ' + y + 'px' }, bt);
+      tl.set('#lab', { x: rnd() * 2 * boil, y: rnd() * 2 * boil, rotation: -2 + rnd() * 1.2 * boil }, bt);
+    }
+  }
   tl.to(['#ink', '#lab'], { autoAlpha: 0, duration: 0.35, ease: 'power2.in' }, 2.6);
   tl.set({}, {}, 3);
 })();
