@@ -14,7 +14,8 @@ import cv2, numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 W, H = 1080, 1920
-SAFE = (70, int(0.14 * H), W - 70, int(0.80 * H))          # x0, y0, x1, y1 (Instagram UI safe area)
+from lib_safe import SAFE as _S, fit_box
+SAFE = (_S["left"], _S["top"], _S["right"], _S["bottom"])   # x0, y0, x1, y1; plus the button column (lib_safe.fit_box)
 F = {"futura": "/System/Library/Fonts/Supplemental/Futura.ttc", "avenir": "/System/Library/Fonts/Avenir Next.ttc",
      "didot": "/System/Library/Fonts/Supplemental/Didot.ttc", "optima": "/System/Library/Fonts/Optima.ttc"}
 STYLES = {
@@ -135,8 +136,8 @@ def box_for(lay, st, zy):
     bw, bh = lay["bw"], lay["bh"]
     x0 = (W - bw) / 2 if st["align"] == "center" else SAFE[0] + 10
     y0 = zy * H - bh / 2
-    y0 = float(np.clip(y0, SAFE[1], SAFE[3] - bh))
-    return int(x0), int(y0), int(x0 + bw), int(y0 + bh)
+    x0, y0, x1, y1 = fit_box(x0, y0, x0 + bw, y0 + bh)       # keeps clear of the like/comment/share column
+    return int(x0), int(y0), int(x1), int(y1)
 
 
 def texture(frames, box):

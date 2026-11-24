@@ -5,7 +5,7 @@
 #   bootstrap.sh --install-system        install the missing Homebrew packages (ffmpeg tap build, mediainfo,
 #                                        exiftool, python@3.12, molten-vk); ~30-40 min. Ask the user first.
 #   bootstrap.sh --use-defaults <name>   copy defaults/<name>.defaults.md to ~/.claude/travel-reel.defaults.md
-#   bootstrap.sh --create [--with-df]    build whatever is missing in the toolkit (downloads from
+#   bootstrap.sh --create [--with-df] [--with-motion]   build whatever is missing in the toolkit (downloads from
 #                                        PyPI / official GitHub releases / opencv_zoo; tell the user first)
 #   bootstrap.sh --init-reel <proj> <id> create reels/<id>/ sharing the project's raw/, metadata, inventory, proxies
 #   bootstrap.sh --init-project <dir>    create trip folder layout + scripts/env.sh + CLAUDE.md template
@@ -23,6 +23,8 @@ YUNET_URL="https://media.githubusercontent.com/media/opencv/opencv_zoo/main/mode
 YUNET_SHA="8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
 YOLO_URL="https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt"
 YOLO_SIZE=5613764
+# motion graphics (optional): pinned, published > 2 weeks before pinning; never `npx hyperframes@latest`
+HF_VERSION="0.8.34"; GSAP_VERSION="3.14.2"
 export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
 # keep tool caches/settings inside the toolkit (the import tests would otherwise write to ~/.matplotlib etc.)
 export MPLCONFIGDIR="$TK/cache/matplotlib" YOLO_CONFIG_DIR="$TK/cache/ultralytics" TORCH_HOME="$TK/cache/torch" HF_HOME="$TK/cache/huggingface"
@@ -69,6 +71,33 @@ check_toolkit() {
   else miss "RIFE" "bootstrap.sh --create"; fi
   if [ -f "$TK/models/face_detection_yunet_2023mar.onnx" ] && [ "$(shasum -a 256 "$TK/models/face_detection_yunet_2023mar.onnx" | cut -d' ' -f1)" = "$YUNET_SHA" ]; then pass "YuNet face model (sha256 ok; optional)"; else miss "YuNet face model (optional)" "bootstrap.sh --create"; fi
   if [ -f "$TK/models/yolo11n.pt" ] && [ "$(stat -f %z "$TK/models/yolo11n.pt")" = "$YOLO_SIZE" ]; then pass "YOLO11n person model (optional)"; else miss "YOLO11n person model (optional)" "bootstrap.sh --create"; fi
+  check_motion
+}
+
+check_motion() {
+  local HFB="$TK/motion/node_modules/.bin/hyperframes"
+  if ! [ -x "$HFB" ]; then printf "  SKIP  motion graphics (optional; bootstrap.sh --install-system --with-motion, then --create --with-motion)\n"; return; fi
+  local v; v=$("$HFB" --version 2>/dev/null)
+  [ "$v" = "$HF_VERSION" ] && pass "hyperframes $v (pinned)" || miss "hyperframes $HF_VERSION (found: ${v:-none})" "bootstrap.sh --create --with-motion"
+  [ -f "$TK/motion/node_modules/gsap/dist/gsap.min.js" ] && pass "gsap (vendored into each render)" || miss "gsap" "bootstrap.sh --create --with-motion"
+  # one real 1-second transparent render: proves Node, Chrome, ffmpeg and alpha output end to end
+  local d; d=$(mktemp -d); mkdir -p "$d/assets/vendor"; cp "$TK/motion/node_modules/gsap/dist/gsap.min.js" "$d/assets/vendor/" 2>/dev/null
+  cat > "$d/index.html" <<'HTML'
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=320, height=240" />
+<script src="assets/vendor/gsap.min.js"></script>
+<style>html,body{margin:0;width:320px;height:240px;background:transparent}#b{position:absolute;left:40px;top:80px;width:80px;height:80px;background:#e33}</style></head>
+<body><div id="root" data-composition-id="main" data-start="0" data-duration="1" data-width="320" data-height="240"><div id="b"></div></div>
+<script>window.__timelines = window.__timelines || {}; var tl = gsap.timeline({ paused: true }); tl.to('#b', { x: 160, duration: 1 }); window.__timelines["main"] = tl;</script>
+</body></html>
+HTML
+  local envs=(HYPERFRAMES_NO_TELEMETRY=1 DO_NOT_TRACK=1)
+  [ -n "${MOTION_BROWSER:-}" ] && envs+=("HYPERFRAMES_BROWSER_PATH=$MOTION_BROWSER")
+  if env "${envs[@]}" "$HFB" render "$d" --format mov -o "$d/t.mov" --quiet >/dev/null 2>&1 \
+     && ffprobe -v error -show_entries stream=pix_fmt -of csv=p=0 "$d/t.mov" 2>/dev/null | grep -q "yuva"; then
+    pass "motion test render (transparent ProRes 4444)"
+  else miss "motion test render" "bootstrap.sh --create --with-motion (installs Chrome via 'hyperframes browser ensure')"; fi
+  rm -rf "$d"
 }
 
 create() {
@@ -107,7 +136,25 @@ create() {
     [ ! -f "$TK/models/yolo11n.pt" ] || [ "$(stat -f %z "$TK/models/yolo11n.pt")" = "$YOLO_SIZE" ] \
       || { echo "YOLO11n size mismatch: removed"; rm -f "$TK/models/yolo11n.pt"; }
   fi
+  if [ "${WITH_MOTION:-0}" = 1 ]; then create_motion; fi
   echo "create done"
+}
+
+create_motion() {
+  # HyperFrames (HTML/GSAP -> video) for motion-graphic overlays. --ignore-scripts skips onnxruntime's
+  # postinstall (only used by background removal, which this skill doesn't use).
+  local nmaj; nmaj=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+  [ "$nmaj" -ge 22 ] 2>/dev/null || { echo "motion: Node 22+ missing -> bootstrap.sh --install-system --with-motion"; return; }
+  mkdir -p "$TK/motion"
+  [ -f "$TK/motion/package.json" ] || printf '{ "name": "travel-reel-motion-toolkit", "private": true }\n' > "$TK/motion/package.json"
+  if ! [ -x "$TK/motion/node_modules/.bin/hyperframes" ] || [ "$("$TK/motion/node_modules/.bin/hyperframes" --version 2>/dev/null)" != "$HF_VERSION" ] \
+     || ! [ -f "$TK/motion/node_modules/gsap/dist/gsap.min.js" ]; then
+    (cd "$TK/motion" && npm install --no-audit --no-fund --ignore-scripts --save-exact "hyperframes@$HF_VERSION" "gsap@$GSAP_VERSION") || { echo "motion: npm install failed"; return; }
+  fi
+  if [ -z "${MOTION_BROWSER:-}" ]; then                     # MOTION_BROWSER = use an existing Chrome instead
+    HYPERFRAMES_NO_TELEMETRY=1 DO_NOT_TRACK=1 "$TK/motion/node_modules/.bin/hyperframes" browser ensure \
+      || echo "motion: Chrome for rendering not installed (re-run, or set MOTION_BROWSER to a Chrome binary)"
+  fi
 }
 
 init_project() {
@@ -152,7 +199,9 @@ EOF
         /<!-- standing-defaults:start -->/ { print; for (i = 1; i <= nb; i++) print body[i]; skip = 1; next }
         /<!-- standing-defaults:end -->/ { skip = 0 }
         skip { next }
-        /^- [^:]+:/ { k = $0; sub(/:.*/, "", k); if (k in ov) { print ov[k]; next } }
+        cont && /^  / { next }                                   # drop the replaced line'\''s continuation lines
+        { cont = 0 }
+        /^- [^:]+:/ { k = $0; sub(/:.*/, "", k); if (k in ov) { print ov[k]; cont = 1; next } }
         { print }' "$SKILL_DIR/CLAUDE.template.md" > "$P/CLAUDE.md"
       echo "wrote $P/CLAUDE.md (fill in the trip name; defaults + config overrides from $DEF)"
     else
@@ -201,6 +250,10 @@ install_system() {
   command -v exiftool >/dev/null || pk+=(exiftool)
   [ -x "$PY312" ] || pk+=(python@3.12)
   "$BREW" list --formula molten-vk >/dev/null 2>&1 || pk+=(molten-vk)
+  if [ "${WITH_MOTION:-0}" = 1 ]; then                       # motion graphics need Node 22+
+    local nmaj; nmaj=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+    [ "$nmaj" -ge 22 ] 2>/dev/null || pk+=(node)
+  fi
   if [ ${#pk[@]} -gt 0 ]; then echo "brew install ${pk[*]}"; "$BREW" install "${pk[@]}" || exit 1; fi
   local need_ff=0
   if command -v ffmpeg >/dev/null; then
@@ -227,8 +280,9 @@ use_defaults() {
 
 case "${1:-}" in
   --check) check_system; check_toolkit; echo "---- $ok pass, $fail missing"; [ "$fail" = 0 ] ;;
-  --create) [ "${2:-}" = "--with-df" ] && WITH_DF=1; create; check_toolkit ;;
-  --install-system) install_system ;;
+  --create) for a in "${@:2}"; do [ "$a" = "--with-df" ] && WITH_DF=1; [ "$a" = "--with-motion" ] && WITH_MOTION=1; done
+            create; check_toolkit ;;
+  --install-system) [ "${2:-}" = "--with-motion" ] && WITH_MOTION=1; install_system ;;
   --use-defaults) [ -n "${2:-}" ] || { echo "usage: --use-defaults <name>"; exit 2; }; use_defaults "$2" ;;
   --init-project) [ -n "${2:-}" ] || { echo "usage: --init-project <dir>"; exit 2; }; init_project "$2" ;;
   --init-reel) [ -n "${2:-}" ] && [ -n "${3:-}" ] || { echo "usage: --init-reel <project> <reel_id>"; exit 2; }; init_reel "$2" "$3" ;;

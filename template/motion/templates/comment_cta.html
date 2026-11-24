@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"line1","type":"string","label":"Line above the keyword","default":"Want the location?"},
+  {"id":"keyword","type":"string","label":"Keyword to comment","default":"CAFE"},
+  {"id":"line2","type":"string","label":"Line below the keyword","default":"Comment it and I will DM you 📩"},
+  {"id":"theme","type":"string","label":"light | dark","default":"light"},
+  {"id":"position","type":"string","label":"upper | center | lower","default":"center"},
+  {"id":"accent","type":"color","label":"Keyword pill colour","default":"#F2C14E"}
+]'>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="assets/fonts/fonts.css" />
+<script src="assets/vendor/gsap.min.js"></script>
+<script src="assets/common.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
+#root{position:relative;width:1080px;height:1920px;overflow:hidden;background:transparent;-webkit-font-smoothing:antialiased}
+#block{position:absolute;left:70px;width:910px;text-align:center;text-shadow:0 3px 16px rgba(0,0,0,.4)}
+#l1,#l2{font-family:'Be Vietnam Pro',sans-serif;font-weight:700;font-size:46px;line-height:1.2;text-wrap:balance}
+#l2{font-weight:600;font-size:38px;margin-top:26px}
+#pillw{margin-top:26px}
+#pill{display:inline-flex;align-items:center;gap:18px;padding:22px 46px;border-radius:999px;
+  font-family:'Be Vietnam Pro',sans-serif;font-weight:800;font-size:92px;letter-spacing:4px;line-height:1;color:#1E1712;
+  text-shadow:none;box-shadow:0 14px 40px rgba(0,0,0,.30)}
+#bub{width:62px;height:62px}
+#caret{display:inline-block;width:6px;height:78px;background:#1E1712;border-radius:3px;margin-left:-8px}
+.light{color:#FFF9F0}.dark{color:#1E1712;text-shadow:none}
+.ch{display:inline-block}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="3.5" data-width="1080" data-height="1920">
+  <div id="block">
+    <div id="l1"></div>
+    <div id="pillw"><div id="pill">
+      <svg id="bub" viewBox="0 0 64 64" fill="#1E1712"><path d="M32 6C17 6 6 16 6 29c0 7 3.4 13.2 8.8 17.4L12 58l12.6-7.2c2.4.6 4.8.9 7.4.9 15 0 26-10 26-22.7S47 6 32 6z"/></svg>
+      <span id="kw"></span><span id="caret"></span>
+    </div></div>
+    <div id="l2"></div>
+  </div>
+</div>
+<script>
+(function () {
+  var v = TR.vars();
+  var b = document.getElementById('block');
+  b.className = v.theme === 'dark' ? 'dark' : 'light';
+  TR.place(b, v.position || 'center');
+  document.getElementById('l1').textContent = v.line1 || '';
+  document.getElementById('l2').textContent = v.line2 || '';
+  document.getElementById('pill').style.background = v.accent || '#F2C14E';
+  var kw = String(v.keyword || 'CAFE').toUpperCase(), html = '';
+  for (var i = 0; i < kw.length; i++) html += '<span class="ch" id="k' + i + '">' + TR.esc(kw[i]) + '</span>';
+  document.getElementById('kw').innerHTML = html;
+  if (!v.line1) document.getElementById('l1').style.display = 'none';
+  if (!v.line2) document.getElementById('l2').style.display = 'none';
+
+  gsap.set('#l1', { autoAlpha: 0, y: 20 });
+  gsap.set('#pill', { autoAlpha: 0, scale: 0.7 });
+  gsap.set('.ch', { display: 'none' });
+  gsap.set('#l2', { autoAlpha: 0, y: 14 });
+  window.__timelines = window.__timelines || {};
+  var tl = gsap.timeline({ paused: true });
+  window.__timelines["main"] = tl;
+  tl.to('#l1', { autoAlpha: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 0.1);
+  tl.to('#pill', { autoAlpha: 1, scale: 1, duration: 0.45, ease: 'back.out(1.8)' }, 0.35);
+  var step = Math.min(0.12, 0.6 / Math.max(kw.length, 1));
+  for (var k = 0; k < kw.length; k++) tl.set('#k' + k, { display: 'inline-block' }, 0.7 + k * step);
+  var done = 0.7 + kw.length * step;
+  tl.set('#caret', { autoAlpha: 0 }, done + 0.05);
+  tl.set('#caret', { autoAlpha: 1 }, done + 0.35);
+  tl.set('#caret', { autoAlpha: 0 }, done + 0.65);
+  tl.fromTo('#pill', { scale: 1 }, { scale: 1.06, duration: 0.18, ease: 'power2.out', yoyo: true, repeat: 1, immediateRender: false }, done + 0.1);
+  tl.to('#l2', { autoAlpha: 1, y: 0, duration: 0.4, ease: 'power3.out' }, done + 0.15);
+  tl.set('#caret', { autoAlpha: 1 }, done + 0.95);
+  tl.set('#caret', { autoAlpha: 0 }, done + 1.25);
+  tl.to('#block', { autoAlpha: 0, scale: 0.97, duration: 0.35, ease: 'power2.in' }, 3.1);
+  tl.set({}, {}, 3.5);
+})();
+</script>
+</body>
+</html>

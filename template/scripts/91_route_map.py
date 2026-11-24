@@ -128,7 +128,7 @@ leg_idx = np.argmin(np.hypot(*(r_back - proj(*PTS["river"])).T))   # where the r
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 FONT = ImageFont.truetype("/System/Library/Fonts/Avenir Next.ttc", 40, index=2)      # Demi Bold
-SAFE = (54, int(0.14 * H), W - 54, int(0.80 * H))                                    # x0, y0, x1, y1
+from lib_safe import box_ok                                                            # shared Instagram safe zone
 back1, back2 = n_back[:leg_idx + 1], n_back[leg_idx:]                                # temple->river, river->Bengaluru
 
 # timeline (s)
@@ -210,10 +210,9 @@ def frame(t, report=None):
 def safe_area_check():
     rep = {}
     for t in np.arange(0, DUR, 0.1): frame(t, rep)
-    bad = {k: [round(v) for v in b] for k, b in rep.items()
-           if b[0] < SAFE[0] or b[1] < SAFE[1] or b[2] > SAFE[2] or b[3] > SAFE[3]}
+    bad = {k: [round(v) for v in b] for k, b in rep.items() if not box_ok(*b)}
     print("label boxes (x0,y0,x1,y1):", {k: [round(v) for v in b] for k, b in rep.items()})
-    print("safe area", SAFE, "->", "ALL INSIDE" if not bad else f"OUTSIDE: {bad}")
+    print("safe area (lib_safe) ->", "ALL INSIDE" if not bad else f"OUTSIDE: {bad}")
 
 
 if "--check" in sys.argv:

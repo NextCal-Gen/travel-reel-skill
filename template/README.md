@@ -36,10 +36,11 @@ this trip's footage; keep the code around it.
 | B-roll from 360 (optional) | `95_broll_360.py` → view `assets/broll_sheet.jpg` | generic | add picks to `23_edl.py` as 360 shots |
 | SFX library (only if the user asks for SFX) | `94_sfx.py` | generic | – (writes `assets/sfx/*.wav`) |
 | On-screen text (optional; SFX opt-in with `--sfx`) | `93_text_sfx.py <ver> --board`, then `93_text_sfx.py <ver> [--sfx]` | generic | `assets/overlays.csv`, `assets/sfx_cues.csv` (see `examples/`) |
-| Rough cut | `60_assemble.py <ver> --mute` → `61_qc.py <file> [master] [--target MIN MAX]` | generic | – |
+| Motion graphics (optional) | `70_motion.py list` / `map` / `render <template> --name ID --set k=v` → `composite --preview <ver>` | generic | `assets/motion_plan.json` |
+| Rough cut | `60_assemble.py <ver> --mute` → `61_qc.py <file> [master] [--target MIN MAX]` → `62_cut_check.py <file>` | generic | – |
 | 🛑 Gate 3 (user checks faces on the rough cut) | | | |
 | Finishing | `70_shot_match.py` → `71_finishing_trims.py` | **trip** | ground regions; trims for measured outliers |
-| Export | `80_export.py <out> [--master work/timeline_text.mov] [--audio work/audio/sfx.wav]` | generic | – |
+| Export | `80_export.py <out> [--master FILE] [--audio work/audio/sfx.wav] [--phone]` (default master: motion > text > clean timeline) | generic | – |
 | Master + Resolve | `81_export_master_otio.py` | **trip** | timeline name |
 | Audio (only if asked) | `40_audio_analysis.py`, `41_audio_mix.py` | **trip** (41) | per-shot overrides |
 | Privacy scan (only if asked) | `50_privacy_scan.py [--file f]` | generic | – |

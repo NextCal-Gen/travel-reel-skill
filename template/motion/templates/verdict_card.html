@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"title","type":"string","label":"Card title","default":"The verdict"},
+  {"id":"rows","type":"string","label":"JSON list of {k, v} rows (max 4)","default":"[{\"k\":\"Ordered\",\"v\":\"Filter coffee + benne dosa\"},{\"k\":\"Paid\",\"v\":\"₹240 for two\"},{\"k\":\"Best seat\",\"v\":\"Window, by the lake\"}]"},
+  {"id":"rating","type":"number","label":"Stars 0-5 (halves ok; -1 = no stars)","default":4.5},
+  {"id":"rating_label","type":"string","label":"Text after the stars","default":"would go back"},
+  {"id":"footer","type":"string","label":"Small line at the bottom (empty = none)","default":""},
+  {"id":"theme","type":"string","label":"cream | dark","default":"cream"},
+  {"id":"position","type":"string","label":"upper | center | lower","default":"lower"},
+  {"id":"accent","type":"color","label":"Accent (stars, rule)","default":"#E0A526"}
+]'>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="assets/fonts/fonts.css" />
+<script src="assets/vendor/gsap.min.js"></script>
+<script src="assets/common.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
+#root{position:relative;width:1080px;height:1920px;overflow:hidden;background:transparent;-webkit-font-smoothing:antialiased}
+#card{position:absolute;left:70px;width:840px;border-radius:38px;padding:44px 50px 42px;
+  box-shadow:0 24px 60px rgba(0,0,0,.28),0 4px 14px rgba(0,0,0,.18)}
+.cream{background:rgba(250,244,234,.95);color:#2A2119}
+.dark{background:rgba(22,18,15,.86);color:#FBF5EC}
+#ttl{font-family:'Playfair Display','Be Vietnam Pro',serif;font-style:italic;font-weight:600;font-size:64px;line-height:1.05}
+#rule{height:4px;width:96px;border-radius:2px;margin:20px 0 26px}
+.row{display:flex;gap:24px;align-items:baseline;padding:14px 0;border-top:1px solid rgba(127,110,95,.28)}
+.row:first-child{border-top:none}
+.k{flex:0 0 210px;font-family:'Be Vietnam Pro',sans-serif;font-weight:700;font-size:26px;letter-spacing:3px;text-transform:uppercase;opacity:.62}
+.v{flex:1;font-family:'Be Vietnam Pro',sans-serif;font-weight:600;font-size:38px;line-height:1.22;text-wrap:balance}
+#stars{display:flex;align-items:center;gap:10px;margin-top:26px}
+.st{position:relative;width:52px;height:52px}
+.st svg{position:absolute;left:0;top:0;width:52px;height:52px}
+.st .fillw{position:absolute;left:0;top:0;height:52px;overflow:hidden;width:0}
+#rlab{font-family:'Patrick Hand','Be Vietnam Pro',cursive;font-size:44px;margin-left:16px;line-height:1}
+#foot{font-family:'Be Vietnam Pro',sans-serif;font-weight:600;font-size:28px;margin-top:24px;opacity:.75}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="4.5" data-width="1080" data-height="1920">
+  <div id="card"><div id="ttl"></div><div id="rule"></div><div id="rows"></div><div id="stars"></div><div id="foot"></div></div>
+</div>
+<script>
+(function () {
+  var v = TR.vars();
+  var card = document.getElementById('card');
+  card.className = v.theme === 'dark' ? 'dark' : 'cream';
+  TR.place(card, v.position || 'lower');
+  var acc = v.accent || '#E0A526';
+  document.getElementById('ttl').textContent = v.title || '';
+  document.getElementById('rule').style.background = acc;
+  var rows = TR.json(v.rows, []).slice(0, 4), html = '';
+  for (var i = 0; i < rows.length; i++) {
+    html += '<div class="row" id="r' + i + '"><div class="k">' + TR.esc(rows[i].k) + '</div><div class="v">' + TR.esc(rows[i].v) + '</div></div>';
+  }
+  document.getElementById('rows').innerHTML = html;
+  var rating = TR.num(v.rating, -1), star = '<path d="M26 3.5l6.6 13.9 15.2 1.9-11.2 10.5 2.9 15.1L26 37.4 12.5 44.9l2.9-15.1L4.2 19.3l15.2-1.9z"/>';
+  var sh = '';
+  if (rating >= 0) {
+    for (var s = 0; s < 5; s++) {
+      sh += '<div class="st" id="s' + s + '"><svg viewBox="0 0 52 52" fill="none" stroke="' + acc + '" stroke-width="2.4" stroke-linejoin="round">' + star +
+            '</svg><div class="fillw" id="f' + s + '"><svg viewBox="0 0 52 52" fill="' + acc + '">' + star + '</svg></div></div>';
+    }
+    sh += '<div id="rlab"></div>';
+    document.getElementById('stars').innerHTML = sh;
+    document.getElementById('rlab').textContent = v.rating_label || '';
+  } else { document.getElementById('stars').style.display = 'none'; }
+  var foot = document.getElementById('foot');
+  if (v.footer) foot.textContent = v.footer; else foot.style.display = 'none';
+
+  gsap.set('#card', { autoAlpha: 0, y: 36, rotation: -1.5, transformOrigin: '50% 100%' });
+  gsap.set('#ttl', { autoAlpha: 0, y: 16 });
+  gsap.set('#rule', { scaleX: 0, transformOrigin: '0% 50%' });
+  gsap.set('.row', { autoAlpha: 0, x: -24 });
+  gsap.set('.st', { scale: 0.4, autoAlpha: 0 });
+  gsap.set('#rlab', { autoAlpha: 0, x: -10 });
+  gsap.set('#foot', { autoAlpha: 0 });
+  window.__timelines = window.__timelines || {};
+  var tl = gsap.timeline({ paused: true });
+  window.__timelines["main"] = tl;
+  tl.to('#card', { autoAlpha: 1, y: 0, rotation: 0, duration: 0.6, ease: 'back.out(1.4)' }, 0.05);
+  tl.to('#ttl', { autoAlpha: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 0.30);
+  tl.to('#rule', { scaleX: 1, duration: 0.45, ease: 'power3.inOut' }, 0.45);
+  tl.to('.row', { autoAlpha: 1, x: 0, duration: 0.4, ease: 'power3.out', stagger: 0.16 }, 0.55);
+  var t0 = 0.6 + 0.16 * rows.length + 0.2;
+  if (rating >= 0) {
+    for (var k = 0; k < 5; k++) {
+      var part = Math.max(0, Math.min(1, rating - k));
+      tl.to('#s' + k, { scale: 1, autoAlpha: 1, duration: 0.22, ease: 'back.out(2.2)' }, t0 + k * 0.09);
+      if (part > 0) tl.to('#f' + k, { width: (52 * part) + 'px', duration: 0.18, ease: 'power2.out' }, t0 + 0.12 + k * 0.09);
+    }
+    tl.to('#rlab', { autoAlpha: 1, x: 0, duration: 0.35, ease: 'power3.out' }, t0 + 0.55);
+  }
+  tl.to('#foot', { autoAlpha: 0.75, duration: 0.35 }, t0 + 0.7);
+  tl.to('#card', { autoAlpha: 0, y: 24, duration: 0.4, ease: 'power2.in' }, 4.05);
+  tl.set({}, {}, 4.5);
+})();
+</script>
+</body>
+</html>

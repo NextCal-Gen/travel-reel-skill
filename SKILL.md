@@ -63,6 +63,10 @@ Do these steps yourself: the user should only have to clone this repo and run `/
    Ask for the trip name only if the clips and the user's message don't make it clear. A `CLAUDE.md`
    created now was not loaded at session start: read it before the kickoff.
 6. Every script runs after `source scripts/env.sh` (it refuses to run if the toolkit is missing).
+7. **Motion graphics chosen at kickoff** and `--check` shows them as SKIP or MISS: tell the user what
+   will be installed (Node 22+ via Homebrew if missing, HyperFrames 0.8.34 + GSAP from npm, a headless
+   Chrome for rendering, about 300 MB), then `bootstrap.sh --install-system --with-motion` (only if Node
+   is missing) and `bootstrap.sh --create --with-motion`. Motion graphics are optional: nothing else needs them.
 
 Also check **free disk space** (a 25 s reel needs about 5 GB of work space: proxies, shots,
 timelines, masters) and warn early if it's short. Reference table of what the toolkit covers:
@@ -76,6 +80,7 @@ timelines, masters) and warn early if it's short. Reference table of what the to
 | Insta360 Studio / Media SDK exports | stitched equirect for .insv | cannot process raw .insv |
 | rife-ncnn-vulkan | slow motion | minterpolate (worse) |
 | OpenTimelineIO (+ `otio-fcp-adapter` for FCPXML) | export edit to DaVinci Resolve | .otio only |
+| Node 22+, HyperFrames 0.8.34 (pinned), GSAP, headless Chrome | motion graphics (optional, `--with-motion`) | Pillow captions only |
 
 `env.sh` also sets `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib` (libplacebo/RIFE find libvulkan)
 and points MPLCONFIGDIR / YOLO_CONFIG_DIR / TORCH_HOME / HF_HOME at the toolkit cache, so nothing
@@ -88,7 +93,9 @@ right after if needed, never later). Apply the **standing defaults** in
 `CLAUDE.md` without asking (e.g. who's on camera, the look); only ask what they don't cover:
 1. **On-screen text:** none / captions (hook + captions + CTA; ask the CTA wording).
 2. **Extras (multi-select):** route map (with or without labels) / B-roll cutaways from 360 clips /
-   destination fact cards (web-researched) / other 360 effects (tiny planet, whip, speed ramps). Default none.
+   destination fact cards (web-researched) / other 360 effects (tiny planet, whip, speed ramps) /
+   **motion graphics** (title reveal, verdict card, hand-drawn annotations, info chips, comment CTA,
+   day counter, hop map; see `70_motion.py list`). Default none.
 3. **Facts not visible in footage:** start city, place names, map links or GPX, distance, the
    user's names for moments. Never invent them; resolve map links to coordinates yourself.
 4. **Who holds the camera / rides:** only if `CLAUDE.md` has no standing default for it.
@@ -268,11 +275,15 @@ the data bbox edge), outbound + return as offset "lanes", pin pops, gentle push-
 line, verified against stills and the safe area.
 
 **On-screen text** (`lib_text.py` + `93_text_sfx.py`; all trip data in `assets/overlays.csv`, example in
-`template/examples/`). No boxes or hard shadows (users found the boxed v6 captions ugly). One style per
+`template/examples/`). Captions default to no box and no hard shadows (the boxed v6 captions looked
+ugly); boxes and cards are fine where they make the design better (CLAUDE.md "Text backgrounds"). All
+on-screen text is in the language set in `CLAUDE.md` (default English; place names in their common
+English form). One style per
 moment: `title` (Futura bold, hook), `clean` (Avenir, captions), `editorial` (Didot italic place name
 + small tracked kicker), `location` (tracked caps + drawn pin), `chip` (outlined pill for facts),
 `kinetic` (word-by-word pop with overshoot, CTA; accent words in the accent colour).
-- Placement: calmest zone (Sobel texture, stable over 3 frames) inside the safe area (14–80% height).
+- Placement: calmest zone (Sobel texture, stable over 3 frames) inside the safe zone from `lib_safe.py`
+  (y 220–1470, 70 px sides, and clear of the like/comment/share column: x ≤ 980 below y 1155).
 - Colour: from the pixels BEHIND the text (k-means dominant colour → deep tone of the same hue on bright
   backgrounds, light tint on dark), accent = complementary hue at contrast ≥ 3:1; worst-frame contrast
   ≥ 4.5:1 (3:1 for large text). A feathered scrim is the last resort, never a box.
@@ -286,6 +297,31 @@ Always also export a clean version.
   map label and no identifying facts; flag readable signage at the storyboard step. With hide, write
   `assets/location_reply.md` for DM replies (`references/planning.md` P.4).
 
+**Motion graphics** (`70_motion.py`; templates in `template/motion/templates/`, HTML + GSAP rendered by
+HyperFrames to transparent ProRes 4444, composited onto the graded timeline; they never pass through
+the grade or LUTs). Seven templates: `title_reveal`, `verdict_card`, `annotate` (circle / arrow /
+underline that draws itself, handwritten label), `info_chips`, `comment_cta`, `day_counter`, `hop_map`.
+1. Plan in `assets/motion_plan.json`: `[{"id": ..., "start": seconds}]`, one entry per render, timed to
+   cuts and not overlapping captions in the same area. Content from the user and the catalogue only
+   (prices, ratings, times: never invented). `annotate` needs the target's pixel position in the
+   rendered frame: measure it on a still of the shot.
+2. Render each: `70_motion.py render <template> --name <id> --set key=value ... [--vars file.json]
+   --bg-time <start>`. It lints, renders, checks alpha, frame count and the safe zone (fails on a
+   violation), and writes `assets/motion/<id>_sheet.jpg` over the real timeline frames. **View every
+   sheet**; fix and re-render rather than accepting something that looks off.
+3. `hop_map`: `70_motion.py map --country <name> --stops "Label:lat,lon[:sub];..."` first. Borders come
+   from Natural Earth, using the country's own point-of-view file where one is published (India,
+   Vietnam and about 30 others), so the map matches what that country considers correct.
+4. `70_motion.py composite` → `work/timeline_motion.mov` (base: `timeline_text.mov` if captions exist,
+   else `timeline_prores.mov`). Add `--preview <ver>` to write the muted rough-cut preview from it; the
+   final export picks it up automatically.
+5. A template that doesn't fit the design: copy it to the project's `motion/templates/` and edit the
+   copy (same variables contract, same lint rules: literal `window.__timelines["main"]`, initial
+   states with `gsap.set` outside the timeline, `immediateRender:false` on `fromTo`, no text
+   measuring, fixed boxes placed with `TR.place` / `TR.clampBox`).
+These templates were rendered and checked during development on Linux, not yet on the Mac: treat the
+first real use as a test and fix what looks wrong.
+
 ## Phase 9: Rough cut
 
 Render `previews/rough_cut_vN.mp4` (1080×1920, 30 fps), run Phase 11 QC (minus the final-only
@@ -297,8 +333,13 @@ run `50_privacy_scan.py` on the rendered shots and use **only the near-person fr
 ranges, view a frame from each range, and list the ones that could be the holder (body, hands,
 gloves, stick shadow) as rough-cut timestamps. Never reframe or cut on your own from this list.
 
+**Cut check:** `62_cut_check.py previews/rough_cut_vN.mp4` → `assets/cut_check.jpg` (last frame before
+and first frame after every cut, from the rendered file). View it: captions or graphics hanging over a
+cut, black or stray frames and missed cuts show up here, not on a 1 fps sheet.
+
 🛑 **Gate 3:** report composition, color, motion, timing, sharpness, transitions, processing
-errors, the holder-check timestamps (or "none found"), and what changed since the last version.
+errors, cut-check flags, the holder-check timestamps (or "none found"), and what changed since the last version.
+Offer a phone copy for review (`80_export.py <out> --phone`, about 5 MB, never for posting).
 **The user checks faces/privacy on this cut.**
 Wait for approval or comments.
 
@@ -310,7 +351,7 @@ easing, horizons, motion blur where natural. Re-render only affected shots. Save
 
 ## Phase 11: Automated + visual QC
 
-Run and report actual results: duration against the reel's target (`61_qc.py --target MIN MAX`;
+Run and report actual results: the cut check (`62_cut_check.py`), duration against the reel's target (`61_qc.py --target MIN MAX`;
 never > 30 s), **no GPS / location metadata** (exiftool), format and tags, blackdetect, freezedetect,
 flash frames, out-of-range pixel percentages, VMAF/SSIM vs the 10-bit master, full decode without
 errors, loudness only if audio exists, 1 fps contact sheet review. About 0.03–0.06% of pixels below video
@@ -325,7 +366,10 @@ black after x264 is codec ringing; raising the floor barely helps, so report it,
 - Only if the user asked for SFX: `93_text_sfx.py <ver> --sfx`, then
   `80_export.py <out> --master work/timeline_text.mov --audio work/audio/sfx.wav`
   (AAC 320k); also a muted copy.
-- `outputs/travel_reel_FINAL_clean.mp4` if on-screen text was added.
+- `80_export.py` picks the top finished layer by itself: `timeline_motion.mov` > `timeline_text.mov` >
+  `timeline_prores.mov`. Add `--phone` for the review copy.
+- `outputs/travel_reel_FINAL_clean.mp4` if on-screen text or graphics were added:
+  `80_export.py <out> --master work/timeline_prores.mov`.
 - `outputs/travel_reel_MASTER.mov` (+ `_clean`): ProRes 422 HQ 10-bit.
 - `outputs/travel_reel.otio`: V1 graded shots (copied to `outputs/resolve_media/`), V2 (disabled)
   originals with in/out and keyframes in metadata (gap under generated graphics), captions as markers.
@@ -370,3 +414,14 @@ extras, QC results (only checks that actually ran), source limitations, caption 
 13. **ffmpeg copies global metadata from the first input by default**, including a phone clip's
     `location` (ISO 6709 GPS) tag, through every re-encode and `-c copy` concat. Use
     `-map_metadata -1` on every output that can reach a deliverable, and check with exiftool.
+14. **HyperFrames ProRes 4444 is BT.601, limited range, and untagged.** Overlaid as-is on the BT.709
+    timeline, #EE3333 comes out as #FE4530. `70_motion.py composite` converts it to BT.709 first; any
+    other use of those files must do the same.
+15. **HyperFrames lint wants the literal registration** `window.__timelines["main"] = tl;` in the
+    composition's own script (a helper that registers it fails lint). And text must not be measured at
+    script time: web fonts may not be ready yet, so templates use fixed boxes and CSS layout.
+16. **Lower-placed graphics need motion headroom.** A card anchored on the 1470 line and sliding in
+    from below crosses it for a few frames; `TR.place(..., 'lower')` keeps content 40 px above the line.
+17. **Handwriting fonts often lack Vietnamese and other accents** (Caveat had no ồ, ế, ư, ơ). The
+    bundled fonts are Be Vietnam Pro, Playfair Display (no ₫, falls back) and Patrick Hand. Check any new
+    font against the actual text before using it.

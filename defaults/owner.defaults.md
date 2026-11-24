@@ -1,5 +1,6 @@
 ## Config overrides
 - Gate 1 auto-continue: yes  (skip the inventory stop when every clip is high confidence)
+- On-screen text language: English  (always; place names in their common English form)
 - Opener: riding footage available → open on the ride: me in helmet → one eased 180° turn to the road ahead → stop and hold. No multi-turn spins.
 
 ## Standing defaults (don't ask; apply unless I say otherwise for a trip)

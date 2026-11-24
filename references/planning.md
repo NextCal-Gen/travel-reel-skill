@@ -32,6 +32,8 @@ market, transit, other, or a type the user added), with `type_evidence`:
 OSM category, what you saw, and the user's note. Signals agree → set it. Signals disagree, or the
 visit is `unknown` and the footage is ambiguous → ask (in the menu round, not separately).
 Use the user's own names for places and moments (`notes/dayNN.md` or kickoff answers) over OSM names.
+On-screen text follows the `CLAUDE.md` language line (default English): use `place_name` (English) from
+`visits.csv`, not `place_name_local`, unless the user says otherwise.
 
 ## P.3 Reel menu (one round of questions; skipped on full autopilot)
 
@@ -114,7 +116,9 @@ holder-check timestamps and autopilot decisions. The user approves or comments p
 
 Series, city and trailer reels are built from `assets/visits.csv` across days. Pick shots by role
 and quality from the per-reel EDLs and shot sheets already made; re-render only new framings.
-Keep one caption style per series (e.g. "Day 3/14") when on-screen text is chosen.
+Keep one caption style per series (e.g. "Day 3/14") when on-screen text is chosen. With motion
+graphics: `day_counter` opens each day's reels, and `hop_map` (stops from the visit centroids, in route
+order) suits the trailer and city reels.
 
 ## Shot checklists (share with the user before a trip when asked)
 

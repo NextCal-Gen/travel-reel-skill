@@ -16,8 +16,15 @@ in Claude Code from a trip folder.
 | `references/planning.md` | Multi-reel mode: visits from time + GPS, reel menu per tier, per-reel location show/hide, autopilot |
 | `visit_types.json` | Editable visit types and OSM tag mapping (copied into each project's `assets/`) |
 | `template/settings.json` | Permission allowlist for unattended runs (copied to each project's `.claude/settings.json`) |
+| `template/motion/` | Optional motion graphics: 7 HyperFrames templates (title reveal, verdict card, annotations, info chips, comment CTA, day counter, hop map), shared safe-zone helpers, bundled OFL fonts (licences included) |
 
 ## Setup on a new Mac (Apple silicon)
+
+Quickest: open Claude Code anywhere and paste
+`Install this skill for me: https://github.com/NextCal-Gen/travel-reel-skill`.
+It clones the repo into `~/.claude/skills/travel-reel`; then run `/travel-reel` in a trip folder.
+
+Or by hand:
 
 1. Install Claude Code and sign in; install [Homebrew](https://brew.sh) (it asks for your password).
 2. Clone this repo into the skills folder (public, no login needed):
@@ -31,6 +38,8 @@ in Claude Code from a trip folder.
    (`--init-project .`) and moving loose clips into `raw/`.
 
 Manual equivalent: `bootstrap.sh --install-system`, `--create`, `--use-defaults owner`, `--check`.
+Motion graphics (optional, about 300 MB): `--install-system --with-motion` (Node 22+, only if missing),
+then `--create --with-motion`. Phase 0 offers this when you pick motion graphics at kickoff.
 
 ## New trip
 

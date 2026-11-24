@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en" data-composition-variables='[
+  {"id":"kicker","type":"string","label":"Small line above (empty = none)","default":"SUNDAY MORNING"},
+  {"id":"title","type":"string","label":"Title","default":"Breakfast by the lake"},
+  {"id":"subtitle","type":"string","label":"Line below (empty = none)","default":""},
+  {"id":"position","type":"string","label":"top | upper | center | lower","default":"upper"},
+  {"id":"align","type":"string","label":"center | left","default":"center"},
+  {"id":"font","type":"string","label":"serif | sans","default":"serif"},
+  {"id":"color","type":"color","label":"Text colour","default":"#FFF8EE"},
+  {"id":"accent","type":"color","label":"Accent (kicker, rule)","default":"#F2C14E"},
+  {"id":"shadow","type":"number","label":"Text shadow strength 0-1","default":0.45}
+]'>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1080, height=1920" />
+<link rel="stylesheet" href="assets/fonts/fonts.css" />
+<script src="assets/vendor/gsap.min.js"></script>
+<script src="assets/common.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:transparent}
+#root{position:relative;width:1080px;height:1920px;overflow:hidden;background:transparent;-webkit-font-smoothing:antialiased}
+#block{position:absolute;left:70px;width:940px}
+#kick{font-family:'Be Vietnam Pro',sans-serif;font-weight:700;font-size:34px;letter-spacing:9px;text-transform:uppercase;margin-bottom:22px}
+#tclip{overflow:hidden;padding:6px 0 14px}
+#title{line-height:1.04;text-wrap:balance}
+.serif #title{font-family:'Playfair Display','Be Vietnam Pro',serif;font-style:italic;font-weight:600;font-size:104px;letter-spacing:-1px}
+.sans #title{font-family:'Be Vietnam Pro',sans-serif;font-weight:800;font-size:96px;letter-spacing:-2px}
+#rule{height:5px;width:150px;border-radius:3px;margin-top:22px}
+#sub{text-wrap:balance;font-family:'Be Vietnam Pro',sans-serif;font-weight:500;font-size:40px;line-height:1.25;margin-top:22px}
+.center{text-align:center}.center #rule{margin-left:auto;margin-right:auto}
+.left{text-align:left}
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="3.2" data-width="1080" data-height="1920">
+  <div id="block"><div id="kick"></div><div id="tclip"><div id="title"></div></div><div id="rule"></div><div id="sub"></div></div>
+</div>
+<script>
+(function () {
+  var v = TR.vars();
+  var b = document.getElementById('block');
+  var align = v.align === 'left' ? 'left' : 'center';
+  var pos = v.position || 'upper';
+  b.className = align + ' ' + (v.font === 'sans' ? 'sans' : 'serif');
+  if (pos === 'lower') { b.style.width = '910px'; }
+  TR.place(b, pos);
+  var sh = TR.num(v.shadow, 0.45);
+  b.style.color = v.color || '#FFF8EE';
+  b.style.textShadow = '0 3px 18px rgba(0,0,0,' + sh + '), 0 1px 3px rgba(0,0,0,' + (sh * 0.8) + ')';
+  document.getElementById('kick').textContent = v.kicker || '';
+  document.getElementById('kick').style.color = v.accent || '#F2C14E';
+  document.getElementById('title').textContent = v.title || '';
+  document.getElementById('sub').textContent = v.subtitle || '';
+  document.getElementById('rule').style.background = v.accent || '#F2C14E';
+  if (!v.kicker) document.getElementById('kick').style.display = 'none';
+  if (!v.subtitle) document.getElementById('sub').style.display = 'none';
+
+  gsap.set('#kick', { autoAlpha: 0, y: 18 });
+  gsap.set('#title', { yPercent: 110 });
+  gsap.set('#rule', { scaleX: 0, transformOrigin: align === 'left' ? '0% 50%' : '50% 50%' });
+  gsap.set('#sub', { autoAlpha: 0, y: 14 });
+  window.__timelines = window.__timelines || {};
+  var tl = gsap.timeline({ paused: true });
+  window.__timelines["main"] = tl;
+  tl.to('#kick', { autoAlpha: 1, y: 0, duration: 0.45, ease: 'power3.out' }, 0.10);
+  tl.to('#title', { yPercent: 0, duration: 0.75, ease: 'expo.out' }, 0.22);
+  tl.to('#rule', { scaleX: 1, duration: 0.6, ease: 'power3.inOut' }, 0.55);
+  tl.to('#sub', { autoAlpha: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.75);
+  tl.to('#block', { autoAlpha: 0, y: -16, filter: 'blur(8px)', duration: 0.45, ease: 'power2.in' }, 2.70);
+  tl.set({}, {}, 3.2);
+})();
+</script>
+</body>
+</html>

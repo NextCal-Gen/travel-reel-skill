@@ -1,0 +1,8 @@
+/* Bundled OFL fonts (licences in this folder). Be Vietnam Pro and Patrick Hand cover Vietnamese fully; Playfair lacks only ₫ (falls back to Be Vietnam Pro). */
+@font-face{font-family:'Be Vietnam Pro';src:url('BeVietnamPro-Medium.ttf') format('truetype');font-weight:500;font-style:normal}
+@font-face{font-family:'Be Vietnam Pro';src:url('BeVietnamPro-SemiBold.ttf') format('truetype');font-weight:600;font-style:normal}
+@font-face{font-family:'Be Vietnam Pro';src:url('BeVietnamPro-Bold.ttf') format('truetype');font-weight:700;font-style:normal}
+@font-face{font-family:'Be Vietnam Pro';src:url('BeVietnamPro-ExtraBold.ttf') format('truetype');font-weight:800;font-style:normal}
+@font-face{font-family:'Playfair Display';src:url('PlayfairDisplay.ttf') format('truetype');font-weight:400 900;font-style:normal}
+@font-face{font-family:'Playfair Display';src:url('PlayfairDisplay-Italic.ttf') format('truetype');font-weight:400 900;font-style:italic}
+@font-face{font-family:'Patrick Hand';src:url('PatrickHand-Regular.ttf') format('truetype');font-weight:400;font-style:normal}

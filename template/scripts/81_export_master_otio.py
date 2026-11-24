@@ -14,8 +14,10 @@ from lib_edl import load_edl
 OUT = os.path.join(ROOT, "outputs"); MED = os.path.join(OUT, "resolve_media")
 os.makedirs(MED, exist_ok=True)
 shutil.copyfile(os.path.join(ROOT, "work", "timeline_prores.mov"), os.path.join(OUT, "travel_reel_MASTER_clean.mov"))
-if os.path.exists(os.path.join(ROOT, "work", "timeline_text.mov")):   # v6: captions burned in
-    shutil.copyfile(os.path.join(ROOT, "work", "timeline_text.mov"), os.path.join(OUT, "travel_reel_MASTER.mov"))
+for _top in ("timeline_motion.mov", "timeline_text.mov"):             # motion graphics (70) > captions (93) > clean
+    if os.path.exists(os.path.join(ROOT, "work", _top)):
+        shutil.copyfile(os.path.join(ROOT, "work", _top), os.path.join(OUT, "travel_reel_MASTER.mov"))
+        break
 inv = inventory()
 RATE = 30
 base_lut = {"360": "base_insta360.cube", "flat": "base_samsung.cube"}

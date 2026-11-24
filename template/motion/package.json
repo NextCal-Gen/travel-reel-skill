@@ -1,0 +1,5 @@
+{
+  "name": "travel-reel-motion",
+  "private": true,
+  "description": "Motion-graphic overlay templates for travel-reel. Rendered with the toolkit's pinned HyperFrames (scripts/70_motion.py), never with npx latest."
+}

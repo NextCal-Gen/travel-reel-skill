@@ -17,6 +17,8 @@ Raw travel clips in, cinematic Instagram Reel out. The full workflow lives in th
 - Location in reel: ask  (show / hide / tag-only / ask, per reel; an unanswered ask = hide; stay reels
   are always hide unless I say show)
 - Comment keyword: <e.g. LOCATION; used by the hide + comment CTA>
+- On-screen text language: English  (captions, cards, map labels; place names in common English form: Hanoi, not Hà Nội)
+- Motion graphics: ask  (none / ask / template names from `70_motion.py list`; offered at kickoff with the extras)
 - Audio: **none** (no music, no ambience, no sound effects). Subtitle sound effects (pop, pin, whoosh...)
   only if I specifically ask for them; never offer or add them by default.
 - Faces: the camera holder must never appear (answer "who holds the camera" at kickoff);
@@ -39,7 +41,9 @@ add one menu round after the catalogue (skipped when `Reel menu: auto`).
 - Emoji where they add meaning (🏍️ ride, 🛕 temple, 🪷 lily pond, 📍 distance, 📩 DM CTA); none on serif
   "editorial" place names. Avoid emoji with branded artwork (Apple's 🛣️ shows a "CUPERTINO" sign).
 - No colons in on-screen text; use " - " only if a break is needed.
-- No boxes behind text: colours and placement are chosen from the frame (lib_text).
+- Text backgrounds: captions default to no box (colour and placement are chosen from the frame by
+  lib_text). Boxes, cards and panels are allowed whenever they make the design better (motion-graphic
+  cards, a styled caption treatment); they are shown at review like any other design choice.
 
 ## Preferences
 - Keep 360 clips natural: no extra 360 effects unless chosen at kickoff.
