@@ -3,13 +3,14 @@ SFX are OFF by default (user rule): the sfx column and sfx_cues.csv are ignored 
 and --sfx is used only when the user specifically asked for sound effects.
 Generic: all trip data lives in two CSVs (no code edits per trip).
 
-assets/overlays.csv   t_in,t_out,style,text,kicker,accent_words,sfx
+assets/overlays.csv   t_in,t_out,style,text,kicker,accent_words,sfx[,zone]
     style        title | clean | editorial | location | chip | kinetic   (lib_text.STYLES)
     text         copy rules: emoji only where they add meaning, NO colons (use " - " if a break is needed),
                  facts only from the user or strong sources (assets/research.md)
     kicker       small line above an editorial title (optional)
     accent_words words drawn in the accent colour, separated by | (optional)
     sfx          pop | tick | pin | whoosh | rise | thud | ticks (one tick per word, kinetic) | empty
+    zone         optional: caption zone centre(s) as fraction of height, '|'-separated (default: lib_text.ZONES)
 assets/sfx_cues.csv   t,sound,gain    extra cues not tied to text (camera turns, cuts). Optional.
 
 Placement and colours are chosen per overlay by lib_text.choose() from 3 frames of the timeline
@@ -53,7 +54,11 @@ def grab(t):
 specs, rep = [], []
 for r in ov:
     a, b = r["t_in"], r["t_out"]
-    sp = T.choose([grab(a + (b - a) * f) for f in (0.15, 0.5, 0.85)], r["text"], r["style"])
+    frs = [grab(a + (b - a) * f) for f in (0.15, 0.5, 0.85)]
+    if r.get("zone"):   # optional override: one or more zone centres (fraction of height), e.g. 0.62|0.70; best scoring wins
+        sp = min((T.choose(frs, r["text"], r["style"], zone=float(z)) for z in r["zone"].split("|")), key=lambda c: c.get("score", 1e6 + c["texture"]))   # scrim fallbacks (no score) last
+    else:
+        sp = T.choose(frs, r["text"], r["style"])
     if r.get("kicker"): sp["kicker"] = r["kicker"]
     if r.get("accent_words"): sp["accent_words"] = r["accent_words"].split("|")
     specs.append(sp)

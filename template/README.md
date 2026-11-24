@@ -31,11 +31,12 @@ this trip's footage; keep the code around it.
 | Repair LUTs (triggered only) | `31_repair_luts.py` | **trip** | which shots/repairs and their parameters |
 | Render shots from originals | `30_render_shot.py [S01 ...]` | **trip** | `REPAIR_LUT`, `FINISH_LUT` shot→LUT maps |
 | Motion check / shot sheet | `33_motion_check.py <id>`, `32_shot_sheet.py` | generic | – |
+| Stabilise flat shot (no gyro, no vidstab) | `34_stabilize.py <id> [--sigma=0.18]` → `assets/stab/<id>.json`, used by `30_render_shot.py` | generic | zoom headroom on the shot in `23_edl.py` |
 | Route map (optional) | `90_fetch_osm.sh`, `91_route_map.py` | **trip** (91; bbox in 90) | `PTS` pins, routes, labels, bbox |
 | Destination research (optional) | WebSearch → `assets/research.md` | – | graded facts (SKILL.md Phase 0.6) |
 | B-roll from 360 (optional) | `95_broll_360.py` → view `assets/broll_sheet.jpg` | generic | add picks to `23_edl.py` as 360 shots |
 | SFX library (only if the user asks for SFX) | `94_sfx.py` | generic | – (writes `assets/sfx/*.wav`) |
-| On-screen text (optional; SFX opt-in with `--sfx`) | `93_text_sfx.py <ver> --board`, then `93_text_sfx.py <ver> [--sfx] [--out FILE]` (tests: `--out work/test_text.mov`) | generic | `assets/overlays.csv`, `assets/sfx_cues.csv` (see `examples/`) |
+| On-screen text (optional; SFX opt-in with `--sfx`) | `93_text_sfx.py <ver> --board`, then `93_text_sfx.py <ver> [--sfx] [--out FILE]` (tests: `--out work/test_text.mov`) | generic | `assets/overlays.csv` (optional `zone` column, e.g. `0.62\|0.70`, when the default zones land on busy areas), `assets/sfx_cues.csv` (see `examples/`) |
 | Motion graphics (optional) | `70_motion.py list` / `map` / `render <template> --name ID --set k=v` → `composite --preview <ver>` | generic | `assets/motion_plan.json` |
 | Rough cut | `60_assemble.py <ver> --mute` → `61_qc.py <file> [master] [--target MIN MAX]` → `62_cut_check.py <file>` | generic | – |
 | Review page | `63_review_page.py [--all]` → `previews/review.html` (phone frame, safe zone, timeline, notes → instructions) | generic | – |

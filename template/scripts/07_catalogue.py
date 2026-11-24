@@ -74,7 +74,10 @@ def parse_date(v):
     m = DATE.search(str(v))
     if not m:
         return None, None
-    dt = datetime(*map(int, m.groups()[:6]))
+    try:                                         # zeroed dates (0000:00:00, e.g. Insta360 app exports) = no date
+        dt = datetime(*map(int, m.groups()[:6]))
+    except ValueError:
+        return None, None
     tz = m[7]
     if tz is None:
         return dt, None
@@ -161,7 +164,8 @@ if not rows:
 warn = []
 
 # time zone for local dates: explicit per clip > most common offset > --tz-offset > UTC (flagged)
-offs = Counter(r["offset"] for r in rows if r["offset"] is not None)
+offs = Counter(r["offset"] for r in rows                    # a file mtime's zone is the computer's, not the camera's
+               if r["offset"] is not None and not r["time_source"].endswith("unreliable)"))
 if TZ_ARG:
     s = TZ_ARG
     trip_off = timedelta(hours=int(s[1:3]), minutes=int(s[4:6])) * (1 if s[0] == "+" else -1)
@@ -176,8 +180,8 @@ missing_t = [r["clip"] for r in rows if r["t_utc"] is None]
 if missing_t:
     warn.append(f"no usable timestamp: {missing_t} (placed at the end; ask the user)")
 for r in rows:
-    if r["time_source"].endswith("unreliable)"):
-        warn.append(f"{r['clip']}: time from file mtime only")
+    if r["time_source"].endswith("unreliable)") and not re.search(r"(\d{8})[_-]?(\d{6})", r["clip"]):
+        warn.append(f"{r['clip']}: time from file mtime only")   # filename-timed clips are fixed below
     r["local"] = (r["t_utc"] + (r["offset"] if r["offset"] is not None else (trip_off or timedelta(0)))) if r["t_utc"] else None
     p = r["points"]
     r["lat"], r["lon"] = (round(p[0][0], 6), round(p[0][1], 6)) if p else ("", "")
@@ -192,6 +196,19 @@ for r in rows:
 # Comparing it with the metadata time shows whether CreateDate is really UTC, and which zone the camera's clock is
 # set to (e.g. still on home time after a flight). Pixel's PXL_ names are UTC, so they are not used.
 FN = re.compile(r"(?:^|[_-])(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})")
+# mtime-only clips (zeroed metadata dates, e.g. Insta360 app exports such as Flow_VID_...): the filename's local
+# wall-clock time beats the copy time, read in the trip's zone
+for r in rows:
+    m = FN.search(r["clip"])
+    if not (r["time_source"].endswith("unreliable)") and m and trip_off is not None):
+        continue
+    try:
+        fn_local = datetime(*map(int, m.groups()))
+    except ValueError:
+        continue
+    r["t_utc"], r["offset"], r["local"] = fn_local - trip_off, trip_off, fn_local
+    r["filename_time"] = fn_local.isoformat()
+    r["time_source"] = f"filename local time (metadata date zeroed; file mtime ignored) in trip offset {trip_off}"
 for r in rows:
     if r["offset"] is not None or r["t_utc"] is None or r["clip"].upper().startswith("PXL_"):
         continue

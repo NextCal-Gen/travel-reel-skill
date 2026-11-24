@@ -7,7 +7,7 @@ Chain (per shot):
   -> repair LUT (only if triggered) -> base_<camera>.cube -> look2_warm_cinematic.cube
   -> yuv422p10le limited BT.709 tagged -> ProRes 422 HQ    (no grain here; grain at final export)
 Usage: 30_render_shot.py [S01 S02 ...]   (default: all)   Output: work/shots/<id>.mov"""
-import os, shutil, subprocess, sys
+import json, os, shutil, subprocess, sys
 import numpy as np
 sys.path.insert(0, os.path.dirname(__file__))
 from lib_reel import ROOT, inventory, input_transform, range_of, to_working_rgb
@@ -41,6 +41,8 @@ def rot_blur_sigma(s, t, eq_w):
 def cmd_file(s, src_fps, kind, src_w=None, src_h=None):
     """sendcmd script: one command block per source frame time (relative to shot start)."""
     lines = []
+    sp = os.path.join(ROOT, "assets", "stab", f"{s['id']}.json")       # crop-path stabilisation (34_stabilize.py)
+    stab = json.load(open(sp)) if kind == "flat" and os.path.exists(sp) else None
     n = int(np.ceil(s["dur"] * src_fps)) + 2
     for i in range(n):
         t = i / src_fps
@@ -54,6 +56,9 @@ def cmd_file(s, src_fps, kind, src_w=None, src_h=None):
         else:
             z, cx, cy = interp(s["kf"], t)
             x, y, w, h = flat_crop(src_w, src_h, z, cx, cy)
+            if stab:                                   # 34_stabilize.py offsets (source px), clamped to the frame
+                j = min(i, len(stab["dx"]) - 1)
+                x = int(np.clip(x + stab["dx"][j], 0, src_w - w)); y = int(np.clip(y + stab["dy"][j], 0, src_h - h))
             lines.append(f"{t:.4f} crop w {w}, crop h {h}, crop x {x}, crop y {y};")
     p = os.path.join(OUT, f"{s['id']}_cmd.txt")
     open(p, "w").write("\n".join(lines) + "\n")

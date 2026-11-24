@@ -32,7 +32,7 @@ if "--file" in sys.argv:
     targets = [("FINAL", sys.argv[sys.argv.index("--file") + 1])]
     report = os.path.join(ROOT, "assets", "privacy_report_final.csv")
 else:
-    targets = [(os.path.basename(f)[:-4], f) for f in sorted(glob.glob(os.path.join(ROOT, "work", "shots", "S*.mov")))]
+    targets = [(os.path.basename(f)[:-4], f) for f in sorted(glob.glob(os.path.join(ROOT, "work", "shots", "*.mov")))]
     report = os.path.join(ROOT, "assets", "privacy_report.csv")
 
 rows, summary = [], []

@@ -97,6 +97,9 @@ motion_env() {
   # PATH with Node 22+ first, and an installed Google Chrome as the render browser unless MOTION_BROWSER is set
   local n; n=$(node22) && export PATH="$(dirname "$n"):$PATH"
   [ -z "${MOTION_BROWSER:-}" ] && [ -x "$CHROME_APP" ] && export MOTION_BROWSER="$CHROME_APP"
+  # Start Chrome once: HyperFrames probes `<chrome> --version` with a short timeout, and a cold Chrome
+  # (first launch after boot or an update) overruns it -> "Chrome cannot start" (SIGKILL, ETIMEDOUT).
+  [ -n "${MOTION_BROWSER:-}" ] && "$MOTION_BROWSER" --version >/dev/null 2>&1
   return 0
 }
 

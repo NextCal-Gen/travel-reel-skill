@@ -78,7 +78,7 @@ timelines, masters) and warn early if it's short. Reference table of what the to
 | ffmpeg/ffprobe (with zscale, libplacebo, libvmaf, v360, lut3d) | core | required |
 | mediainfo, exiftool | metadata, camera model | ffprobe only |
 | Python: colour-science, opencolorio, numpy, opencv, librosa, scenedetect, Pillow | color, analysis, text | ffmpeg filters |
-| Gyroflow (CLI) | gyro stabilization, **only if the file carries gyro data** (Insta360 Studio exports strip it; stock phone camera files usually lack usable data) | ffmpeg vidstab |
+| Gyroflow (CLI) | gyro stabilization, **only if the file carries gyro data** (Insta360 Studio exports strip it; stock phone camera files usually lack usable data) | ffmpeg vidstab; without it `34_stabilize.py` (crop-path smoothing) |
 | Insta360 Studio / Media SDK exports | stitched equirect for .insv | cannot process raw .insv |
 | rife-ncnn-vulkan | slow motion | minterpolate (worse) |
 | OpenTimelineIO (+ `otio-fcp-adapter` for FCPXML) | export edit to DaVinci Resolve | .otio only |
@@ -200,7 +200,7 @@ Measure on the views the reel will actually show (9:16 rectilinear views for 360
 | Haze | dark channel > 0.28 and low contrast, **confirmed visually** (grey asphalt is a false positive) | mild dehaze on that shot only |
 | Noise | Immerkaer sigma > 3.0 | temporal denoise before grading |
 | White balance cast | **clip-wide** cast on large sunlit neutrals (asphalt, paving, concrete) | WB correction |
-| Shake | residual motion jitter > 1.2 px | Gyroflow if gyro data exists, else vidstab |
+| Shake | residual motion jitter > 1.2 px | Gyroflow if gyro data exists, else vidstab; if ffmpeg lacks vidstab, `34_stabilize.py <id> [--sigma=S]` (flat shots, needs zoom headroom: max offset ≤ crop margin) |
 | Needs motion blur | flow > 4 px/frame and still crisp | 60p: blend frame pairs; virtual 360 yaw moves: horizontal equirect blur (pitfall 7) |
 | Ultra-wide distortion | bent straight lines near the edges | lens correction only if a profile exists |
 | 8-bit banding risk | smooth skies on 8-bit sources (nearly always) | global: no strong sky secondaries; grain + dither at export |

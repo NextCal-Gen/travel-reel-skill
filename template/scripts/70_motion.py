@@ -78,7 +78,24 @@ def hf_env():
     browser = os.environ.get("MOTION_BROWSER") or (CHROME_APP if os.path.exists(CHROME_APP) else "")
     if browser:                                                  # else HyperFrames uses the Chrome it downloaded
         e["HYPERFRAMES_BROWSER_PATH"] = browser
+        warm_browser(browser)
     return e
+
+
+_warmed = set()
+
+
+def warm_browser(browser):
+    """Start Chrome once before HyperFrames probes it. HyperFrames runs `<chrome> --version` with a short
+    timeout; a cold Chrome (first launch after boot or an update) overruns it and the render fails with
+    'Chrome cannot start' (SIGKILL, ETIMEDOUT). Seen on macOS: cold probe fails, warm probe takes 0.06 s."""
+    if browser in _warmed:
+        return
+    try:
+        subprocess.run([browser, "--version"], capture_output=True, timeout=90)
+    except (OSError, subprocess.TimeoutExpired):
+        pass                                                     # HyperFrames reports the real error if Chrome is broken
+    _warmed.add(browser)
 
 
 def arg(name, default=None):
