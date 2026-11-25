@@ -38,6 +38,7 @@ this trip's footage; keep the code around it.
 | On-screen text (optional; SFX opt-in with `--sfx`) | `93_text_sfx.py <ver> --board`, then `93_text_sfx.py <ver> [--sfx] [--out FILE]` (tests: `--out work/test_text.mov`) | generic | `assets/overlays.csv`, `assets/sfx_cues.csv` (see `examples/`) |
 | Motion graphics (optional) | `70_motion.py list` / `map` / `render <template> --name ID --set k=v` → `composite --preview <ver>` | generic | `assets/motion_plan.json` |
 | Rough cut | `60_assemble.py <ver> --mute` → `61_qc.py <file> [master] [--target MIN MAX]` → `62_cut_check.py <file>` | generic | – |
+| World-locked labels (360) | `71_world_labels.py still / locate / render` → overlays + `assets/motion_plan.json` entries | generic | `assets/world_labels.json` |
 | Review page | `63_review_page.py [--all]` → `previews/review.html` (phone frame, safe zone, timeline, notes → instructions) | generic | – |
 | 🛑 Gate 3 (user checks faces on the rough cut) | | | |
 | Finishing | `70_shot_match.py` → `71_finishing_trims.py` | **trip** | ground regions; trims for measured outliers |

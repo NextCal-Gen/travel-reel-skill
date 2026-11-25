@@ -354,6 +354,23 @@ animated wobble), `info_chips` (`count: true` on a chip rolls its number up: "62
 These templates were rendered and checked during development on Linux, not yet on the Mac: treat the
 first real use as a test and fix what looks wrong.
 
+**World-locked labels on 360 shots** (`71_world_labels.py`): a pin and a short name fixed to a real
+direction in the scene (the temple, the hilltop, the bridge), so it stays on it while the virtual camera
+pans. No tracking: each 360 shot's camera path is known exactly, so positions are projection maths
+(checked against v360 output: under 1 px). Use them where they explain the place, at most one or two per
+reel, and only on 360 shots (flat shots have no known camera path).
+1. `71_world_labels.py still <shot> <t>` → a gridded frame; view it and read the target's pixel.
+2. `71_world_labels.py locate <shot> <t> <x> <y>` → the target's world `yaw`/`pitch`.
+3. Write `assets/world_labels.json` (`id`, `shot`, `yaw`, `pitch`, `text`, optional `sub`, `t0`/`t1` in shot
+   time, `side` above/below) and run `71_world_labels.py render`: it renders transparent overlays in the
+   motion-graphics format, fades each label in and out, hides it when the target turns away or the label
+   would leave the safe zone, warns when it is readable for under 1 s, and adds it to
+   `assets/motion_plan.json`. Then `70_motion.py composite` as usual. Text follows the CLAUDE.md language.
+
+**3D rule:** 3D or spatial graphics only when they show place, distance or height (world labels, maps),
+at most one such moment per reel besides labels, and never footage pushed through a 3D or browser renderer
+(colour pipeline).
+
 ## Phase 9: Rough cut
 
 Render `previews/rough_cut_vN.mp4` (1080×1920, 30 fps), run Phase 11 QC (minus the final-only
@@ -471,3 +488,7 @@ extras, QC results (only checks that actually ran), source limitations, caption 
 21. **Seek-driven renders skip GSAP callbacks.** HyperFrames seeks the timeline frame by frame, and a seek
     doesn't fire `tl.call` callbacks, so anything stepped (count-ups, grain, boil) must be state switched
     with `tl.set` (`display`, `visibility`, `x`, ...), never a callback that writes text.
+19. **v360 `flat` with `reset_rot=1` rotates yaw first, then pitch:** camera vector = Rx(pitch)·Ry(yaw)·v,
+    with yaw and pitch in the keyframe signs as written. Measured on marker footage: 0.8 px mean error;
+    the other order is off by tens of pixels. `71_world_labels.py` uses this; anything else that maps
+    360 directions to the rendered frame must too.
